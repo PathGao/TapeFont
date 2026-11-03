@@ -1,0 +1,1 @@
+{"ch": "か", "src": "か_b047_1c_0.svg", "aspect": 0.68, "w": 0.11, "strips": [[[0.0, 0.074], [0.47, 0.074], [0.47, 0.945], [0.304, 0.945]], [[0.212, 0.0], [0.212, 0.945], [0.0, 0.945]], [[0.625, 0.021], [0.625, 0.45]]], "iou": 0.75, "note": "round 2: w 0.11, aspect 0.68 (was w 0.105 / 0.58); same strips, bends and levels, remapped so the ink fills the cell edge to edge."}

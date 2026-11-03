@@ -1,0 +1,1 @@
+{"ch": "I", "src": "I_b120_1b_0.svg", "aspect": 0.11, "w": 0.11, "strips": [[[0.055, 0.0], [0.055, 1.0]]], "note": "std rebuild: one strip w 0.11, aspect 0.11 = the bar itself (was 0.36 with w 0.2; tape.py stretches the bounds to the cell, so any wider cell turns the bar into a block).", "iou": 0.508}

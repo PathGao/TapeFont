@@ -1,0 +1,1 @@
+{"ch": "り", "src": "り_b088_3_4.svg", "aspect": 0.68, "w": 0.11, "strips": [[[0.116, 0.01], [0.116, 0.465], [0.245, 0.465]], [[0.577, 0.01], [0.577, 0.895], [0.17, 0.895]]], "iou": 0.689, "note": "src switched from b088_2_2 (speck at the top-right corner shifted the review crop) to the clean b088_3_4, same sign; two L strips at w 0.11"}

@@ -1,0 +1,1 @@
+{"ch": "E", "src": "E_a036_8_0.svg", "aspect": 0.5, "w": 0.11, "strips": [[[0.5, 0.055], [0.055, 0.055], [0.055, 0.945], [0.5, 0.945]], [[0.055, 0.5], [0.44, 0.5]]], "iou": 0.877, "note": "standard grid: aspect 0.5, w 0.11, edges at 0.055 / mid 0.5, digits all one cell", "polys": [], "cuts": [], "sharp": []}
