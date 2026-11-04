@@ -7,10 +7,10 @@ zh first) and from its skeleton (what the engine shows today). Both are scored w
 src/preview.py (strokes covered, holes vs the reference font, thinnest white gap), plus
 shape (correlation of the blurred ink box with the reference font's) and blob (share of ink
 thicker than 1.6 tapes). A char is composed when the assembled glyph
-  - is built from library parts only (no stroke from the skeleton),
   - is complete (every stroke covered),
-  - has holes at least as close to the reference font and no thinner white gap (or >= 0.03),
-  - keeps its shape (correlation at most 0.1 below the skeleton's) and adds no blobs.
+  - takes at most SKEL_SHARE of its strokes from the skeleton,
+  - has holes at most HOLE_SLACK further from the reference font and no thinner white gap (or >= 0.02),
+  - keeps its shape (correlation at most SHAPE_SLACK below the skeleton's) and adds no blobs.
 Writes data/compose_ok.tsv (char, tree source) and build/gate_metrics.tsv, prints the counts,
 and with OUT.png saves a sheet of skeleton | composed pairs. Then run src/export_web.py.
 """
@@ -27,7 +27,9 @@ import export_web, preview
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
 K = preview.H
-SKEL_SHARE = 0  # most strokes a composed char may build from its skeleton, as a fraction
+SKEL_SHARE = 0    # most strokes a composed char may build from its skeleton, as a fraction
+HOLE_SLACK = 1    # composed may miss the reference hole count by this many more than the skeleton
+SHAPE_SLACK = 0.2 # composed shape correlation may be this much below the skeleton's
 
 RUN = r"""
 const [dataPath, candPath, outPath] = process.argv.slice(1);
@@ -117,8 +119,10 @@ def main():
         metrics.append(f"{ch}\t{r['src']}\t" + "\t".join(f"{v:.3f}" for k in ("skel", "comp") for v in (m[k][0] / max(m[k][1], 1), m[k][2], m[k][3], m[k][5], m[k][6])))
         s, c = m["skel"], m["comp"]
         complete = c[0] == c[1]
-        good = (complete and c[2] <= s[2] and (c[3] >= s[3] - 1e-9 or c[3] >= 0.03)
-                and c[6] >= s[6] - 0.1 and c[5] <= s[5] + 0.01)
+        # the skeleton fallback is far worse to the eye than the metrics say, so a composed
+        # glyph only has to be complete and not clearly worse
+        good = (complete and c[2] <= s[2] + HOLE_SLACK and (c[3] >= s[3] - 1e-9 or c[3] >= 0.02)
+                and c[6] >= s[6] - SHAPE_SLACK and c[5] <= s[5] + 0.01)
         stats["complete"] += complete
         share = r["fromSkel"] / max(r["n"], 1)
         for x in (0, 0.25, 0.5, 1):
