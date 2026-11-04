@@ -1,1 +1,1 @@
-{"ch": "T", "src": "T_a036_6_0.svg", "aspect": 0.56, "w": 0.11, "strips": [[[0, 0.055], [0.56, 0.055]], [[0.28, 0.055], [0.28, 1.0]]], "iou": 0.856, "note": "legibility: full-height T at w 0.11 (was small-cap, bar low, w 0.09)", "cuts": [], "sharp": []}
+{"ch": "T", "src": "T_a036_6_0.svg", "aspect": 0.56, "w": 0.11, "strips": [[[0, 0.055], [0.56, 0.055]], [[0.28, 0.055], [0.28, 1.0]]], "note": "Deliberately differs from the photo, for legibility: full-height T at w 0.11"}

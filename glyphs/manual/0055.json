@@ -1,1 +1,1 @@
-{"ch": "U", "src": "U_b138_1e_0.svg", "aspect": 0.62, "w": 0.11, "strips": [[[0.055, 0.0], [0.055, 0.945], [0.565, 0.945], [0.565, 0.0]]], "note": "std rebuild: one U strip, w 0.11, natural aspect 0.62 (was 0.85 with w 0.23), full cell height.", "iou": 0.394}
+{"ch": "U", "src": "U_b138_1e_0.svg", "aspect": 0.62, "w": 0.11, "strips": [[[0.055, 0.0], [0.055, 0.945], [0.565, 0.945], [0.565, 0.0]]], "note": "one U strip, w 0.11, natural aspect 0.62, full cell height"}

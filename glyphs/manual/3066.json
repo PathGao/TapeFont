@@ -1,1 +1,1 @@
-{"ch": "て", "src": "て_b137_3d_0.svg", "aspect": 0.68, "w": 0.11, "strips": [[[0.0, 0.055], [0.6, 0.055], [0.6, 0.25], [0.233, 0.25], [0.233, 0.945], [0.68, 0.945]]], "note": "round 2: w 0.11, aspect 0.68 (was w 0.1 / 0.45); same strips, bends and levels, remapped so the ink fills the cell edge to edge.", "iou": 0.375}
+{"ch": "て", "src": "て_b137_3d_0.svg", "aspect": 0.68, "w": 0.11, "strips": [[[0.0, 0.055], [0.6, 0.055], [0.6, 0.25], [0.233, 0.25], [0.233, 0.945], [0.68, 0.945]]], "note": "same strips, bends and levels, remapped so the ink fills the cell edge to edge"}

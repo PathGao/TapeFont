@@ -1,1 +1,1 @@
-{"ch": "テ", "src": "テ_b137_1d_0.svg", "aspect": 0.68, "w": 0.11, "strips": [[[0.0, 0.055], [0.68, 0.055]], [[0.0, 0.48], [0.68, 0.48]], [[0.343, 0.48], [0.343, 0.945], [0.0, 0.945]]], "note": "std rebuild from the b137 sign (was b017 heavy chart, two bars merged): two bars, stem bends into a left foot.", "iou": 0.603}
+{"ch": "テ", "src": "テ_b137_1d_0.svg", "aspect": 0.68, "w": 0.11, "strips": [[[0.0, 0.055], [0.68, 0.055]], [[0.0, 0.48], [0.68, 0.48]], [[0.343, 0.48], [0.343, 0.945], [0.0, 0.945]]], "note": "two bars, stem bends into a left foot"}

@@ -1,1 +1,1 @@
-{"ch": "O", "src": "O_b138_1b_0.svg", "aspect": 0.6, "strips": [[[0.3, 0.07], [0.53, 0.07], [0.53, 0.93], [0.07, 0.93], [0.07, 0.07], [0.31, 0.07]]], "w": 0.11, "note": "rebuilt at w 0.11, aspect 0.6 (was heavy w 0.25 / 0.95); closed rect loop starting mid-top so all four corners round.", "iou": 0.425}
+{"ch": "O", "src": "O_b138_1b_0.svg", "aspect": 0.6, "w": 0.11, "strips": [[[0.3, 0.07], [0.53, 0.07], [0.53, 0.93], [0.07, 0.93], [0.07, 0.07], [0.31, 0.07]]], "note": "closed rect loop starting mid-top so all four corners round"}

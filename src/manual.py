@@ -5,11 +5,12 @@ Entry format (image coords: y down, cell height 1.0, cell width = aspect):
    "strips": [[[x, y], [x, y], ...], ...],   # tape centerlines, flat ends, w wide
    "polys":  [[[x, y], ...], ...],           # extra filled shapes: wedges, dots, triangles
    "cuts":   [[[x, y], ...], ...],           # shapes cut out after the union (slits, notches)
-   "sharp":  [[x, y], ...]}                  # outline corners near these points stay square
+   "sharp":  [[x, y], ...],                  # outline corners near these points stay square
+   "note": "..."}                           # src is null for glyphs built without a photo
 Outer bends of the merged outline are rounded by tape.round_corners; strip ends stay square.
 
-check: .venv/bin/python -I src/manual.py glyphs/manual/53E3.json [OUT.png]
-prints IoU against the trace in "src" and writes an overlay
+check: .venv/bin/python -I src/manual.py glyphs/manual/53E3.json [OVERLAY.png]
+prints IoU against the trace in "src"; with OVERLAY.png also writes an overlay
 (black = both, blue = only in photo, red = only in ours).
 """
 import json, sys
@@ -95,6 +96,6 @@ def check(e):
 if __name__ == "__main__":
     e = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     iou, over = check(e)
-    out = sys.argv[2] if len(sys.argv) > 2 else str(Path(sys.argv[1]).with_suffix(".png"))
-    over.save(out)
-    print(f"{e['ch']} IoU {iou:.3f} -> {out}")
+    print(f"{e['ch']} IoU {iou:.3f}")
+    if len(sys.argv) > 2:
+        over.save(sys.argv[2])

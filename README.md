@@ -1,25 +1,188 @@
-# TapeFont
+<p align="center">
+  <img src="docs/images/hero.png" alt="TapeFont: 新宿駅南口改札 ← 左側通行 →" width="720">
+</p>
 
-复刻佐藤修悦的胶带字（修悦体）。每个字照招牌照片用胶带条手工搭出来，再生成 TTF。仅供个人使用。
+<h1 align="center">TapeFont</h1>
 
-## 现状
+<p align="center">
+  复刻佐藤修悦的胶带字（修悦体）：一个手搭的 TTF 字体，加一个按行计算的网页排版引擎。
+</p>
 
-`build/hand.ttf` 收录 297 个字：汉字 166、平假名 36、片假名 57、拉丁字母和数字 30、符号 8。只有照片里出现过的字。
+---
 
-## 构建
+佐藤修悦（佐藤修悦）在 JR 新宿站用黑色胶带贴出了一整套指示牌字体。他的做法是先铺等宽的胶带条，再用刀切掉多余部分：横平竖直，外弯切成圆角，断头和 T 形接口保持方角，一行里的横线互相对齐。
 
-```bash
-uv venv .venv && uv pip install -p .venv fonttools skia-pathops pillow opencv-python-headless numpy
-ALL=$(.venv/bin/python -I -c "import json,glob;print(''.join(json.load(open(f))['ch'] for f in glob.glob('glyphs/manual/*.json')))")
-.venv/bin/python -I src/tape.py build/hand.ttf "$ALL" --ja advance=680
-.venv/bin/python -I src/sample.py build/hand.ttf build/hand.png "新宿駅南口改札・左側通行|0123456789 TOKYU"
-```
+这个仓库做两件事：
+
+1. **字体**：照招牌照片，一个字一个字用"胶带条"搭出来，生成 `build/hand.ttf`。
+2. **引擎**：网页里每打完一行，就把这一整行一起计算：手搭的字优先，其余字从中日文笔画骨架生成；整行的横线并到共通线上，同时不压窄白缝、不缩放字、不推出字格。
+
+> 仅供个人使用。照片版权归原作者，骨架数据的许可见 [NOTICE.md](NOTICE.md)。
 
 ## 目录
 
-- `glyphs/manual/<码位>.json`：手搭字形（胶带中线、补块、切口），格式见 `src/manual.py`。
-- `glyphs/components/`：各部首的搭法记录。
-- `src/`：`tape.py` 生成字体，`manual.py` 渲染并和照片比对，`trace.py` 从照片描字，`compare.py` 和 `sample.py` 出对比图和样张。
-- `refs/`：招牌照片（`photos_a`、`photos_b`）和描出来的字（`traced`）。照片版权归原作者，仅作参考。
-- `docs/`：佐藤书中的做法（`book_method.md`）和搭字规范。
-- `data/`：骨架数据，来自 Make Me a Hanzi（APL）和 KanjiVG（CC BY-SA 3.0），见 `data/LICENSES.md`。原始下载在 `data/raw/`，不入库。
+- [展示](#展示)
+- [快速开始](#快速开始)
+- [引擎怎么算一行](#引擎怎么算一行)
+- [一个字怎么搭](#一个字怎么搭)
+- [质量检查](#质量检查)
+- [项目结构](#项目结构)
+- [现状与限制](#现状与限制)
+
+## 展示
+
+### 招牌原字 vs 本字体
+
+每组上面是从招牌照片描下来的原字，下面是本字体。原字的胶带粗细和格子比例每块招牌都不一样，本字体统一成胶带宽 0.11、格子宽高比 0.68。
+
+![招牌原字与本字体对比](docs/images/photo_vs_font.png)
+
+### 引擎排出的指示牌
+
+![引擎排版的指示牌文字](docs/images/signs.png)
+
+### 网页
+
+打开 `web/index.html`，在框里打字，按回车，上一行就整体排成修悦体。可以开关整行对齐、切换中日文骨架、调字高。
+
+![网页界面](docs/images/web_ui.png)
+
+### 假名
+
+全部平假名、片假名，含浊音、半浊音和小写假名。小写假名保持自己的小尺寸，坐在基线上。
+
+![平假名和片假名](docs/images/kana.png)
+
+### 汉字
+
+照招牌照片搭的汉字，加上按同一规范补搭的常用汉字。
+
+![汉字](docs/images/kanji.png)
+
+### 字母、数字、箭头
+
+数字共用一个格子宽（0.58），中横在同一高度。
+
+![字母数字箭头](docs/images/latin.png)
+
+## 快速开始
+
+需要 Python 3.12、Node 20，以及 [uv](https://github.com/astral-sh/uv)。
+
+```bash
+make venv      # 建 .venv 并装依赖（requirements.txt）
+make all       # 字体 build/hand.ttf、网页数据 web/data.js、两张样张
+make test      # Python 和 Node 两套测试
+```
+
+只想用：
+
+- 字体：双击 `build/hand.ttf` 安装。
+- 引擎：双击 `web/index.html`，不需要服务器。
+- 命令行排版：
+
+```bash
+node web/cli.js "新宿駅南口改札|左側通行" out.json
+.venv/bin/python -I src/raster_web.py out.json out.png
+```
+
+## 引擎怎么算一行
+
+```
+一行文字
+  │
+  ├─ 每个字取字形 ──── 有手搭字？ ── 是 → glyphs/manual/<码位>.json
+  │                                  └ 否 → 中日文笔画骨架 → 拉直、吸附横竖
+  │                                         → 相对的横/竖之间强制留白缝
+  │                                         → 端点沿自身方向接到邻笔，短点变方块
+  │
+  ├─ 整行对齐 ────── 收集所有字的横线高度，相近的并成共通线
+  │                  每个字：被窄白缝（不到一个胶带宽）连着的几根横算一组，整组平移
+  │                  组与组之间的宽白带吸收位移，变化不超过 35%，不低于最小缝
+  │                  字不缩放，墨迹不出字格
+  │
+  └─ 画胶带 ──────── 中线 → 胶带轮廓（方头、斜接）→ 外弯圆角约 1 个胶带宽
+                     补块、切口按 JSON 画；切口用遮罩挖掉
+```
+
+对齐前后的差别（红 = 对齐后才有的墨，蓝 = 对齐前才有的墨）：
+
+![整行对齐前后对比](docs/images/alignment.png)
+
+没有手搭字时，引擎从骨架生成。简单的字能读，笔画多的字还偏黑，这些字要靠继续手搭来补：
+
+![手搭字与骨架生成字](docs/images/fallback.png)
+
+## 一个字怎么搭
+
+每个字是一个 JSON：胶带中线（`strips`）、补块（`polys`）、切口（`cuts`）、保持方角的点（`sharp`）。坐标在字格里，x 从 0 到宽高比，y 从 0 到 1 向下。合并后外弯自动切成圆角。
+
+![搭字过程：照片 → 中线、补块、切口 → 字形](docs/images/construction.png)
+
+```json
+{"ch": "口", "src": "口_a041_2_2.svg", "aspect": 0.68, "w": 0.11,
+ "strips": [[[0.34, 0.14], [0.595, 0.14], [0.595, 0.915], [0.085, 0.915], [0.085, 0.14], [0.35, 0.14]]]}
+```
+
+规范和工具见 [docs/building_glyphs.md](docs/building_glyphs.md)，各部首和假名笔画的搭法见 [docs/radicals.md](docs/radicals.md)，佐藤本人的做法见 [docs/book_method.md](docs/book_method.md)。
+
+## 质量检查
+
+没有照片的字，用参考字体（冬青黑体）查完整度和辨识度：笔画和点有没有全盖到、封闭空洞数、最窄白缝。下图每组依次是：参考字体、笔画骨架、本字体、本字体叠骨架（绿 = 盖到，红 = 缺笔）。
+
+![完整度检查](docs/images/checks.png)
+
+```bash
+.venv/bin/python -I src/preview.py out.png "側場以後" --ja     # 完整度、空洞、最窄白缝
+.venv/bin/python -I src/manual.py glyphs/manual/5834.json o.png # 和照片描字比对
+.venv/bin/python -I src/review_sheet.py out_dir "一行|另一行"    # 引擎、字体、照片、逐字指标
+```
+
+## 项目结构
+
+```
+TapeFont/
+├── glyphs/manual/      695 个定稿字形（<码位>.json）；src 指向照片描字，null 表示没有照片
+├── web/                引擎 engine.js、页面 index.html、命令行 cli.js、导出数据 data.js
+├── src/
+│   ├── tape.py         字形 → build/hand.ttf
+│   ├── manual.py       渲染一个字，和照片描字比对
+│   ├── export_web.py   字形 + 骨架 → web/data.js
+│   ├── raster_web.py   引擎输出 → PNG
+│   ├── preview.py      完整度、辨识度检查
+│   ├── review_sheet.py 评审对照图
+│   ├── compare.py      照片描字和字体并排对比
+│   ├── trace.py        从照片描字
+│   ├── sample.py       样张
+│   ├── showcase.py     重新生成 README 的图
+│   └── data_prep/      骨架数据的整理和覆盖率统计
+├── refs/
+│   ├── photos_a/ photos_b/   招牌照片，来源在各自的 manifest.tsv
+│   └── traced/               830 份照片描字，index.tsv 索引，photo_notes.md 每张照片的实测
+├── data/               中日文笔画骨架（skeletons*.jsonl）、许可、覆盖率
+├── docs/               做法、规范、部首搭法、README 图片
+├── tests/              Python（字形、字体）和 Node（引擎）测试
+└── build/              hand.ttf、样张
+```
+
+## 现状与限制
+
+| 内容 | 数量 |
+|---|---|
+| 手搭字形 | 695 |
+| 其中照招牌照片搭的 | 297 |
+| 平假名 / 片假名 | 86 / 88 |
+| 汉字 | 474 |
+| 骨架覆盖 | GB2312 6763 字、JIS 第一第二水准 6355 字、常用漢字 2136 字全部覆盖 |
+
+- 字体只收手搭字；其余字要用引擎（从骨架生成）。
+- 骨架生成的字可读性不如手搭字，笔画多的字偏黑。
+- 同一个部首，照片原字本身就有几种写法（彳、氵、人字头等），文档里都记了，新字用哪种也写明了。
+- 照片来自公开报道和网络，只作参考，不随字体分发。
+
+## 致谢
+
+- 佐藤修悦，以及记录他作品的 ロケットニュース24、ジモコロ 等报道。
+- [Make Me a Hanzi](https://github.com/skishore/makemeahanzi)（笔画骨架，Arphic Public License）。
+- [KanjiVG](https://kanjivg.tagaini.net/)（日文笔画骨架，CC BY-SA 3.0）。
+- [KANJIDIC2](http://www.edrdg.org/kanjidic/)（常用漢字表，CC BY-SA 4.0）。

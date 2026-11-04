@@ -19,7 +19,8 @@ for line in open(ROOT / "refs/traced/index.tsv", encoding="utf-8"):
 for m in (ROOT / "glyphs/manual").glob("*.json"):  # prefer the trace each hand glyph was built from
     import json
     e = json.loads(m.read_text(encoding="utf-8"))
-    traces[e["ch"]] = ROOT / "refs/traced" / e["src"].replace(".svg", ".png")
+    if e.get("src"):
+        traces[e["ch"]] = ROOT / "refs/traced" / e["src"].replace(".svg", ".png")
 f = ImageFont.truetype(font, 400)
 if chars == "@traced":
     chars = "".join(c for c in traces if f.getmask(c).getbbox() and c.strip() and ord(c) > 0x3000)

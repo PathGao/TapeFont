@@ -1,0 +1,9 @@
+{
+  "name": "tapefont",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "layout": "node web/cli.js"
+  }
+}

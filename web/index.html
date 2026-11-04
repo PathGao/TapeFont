@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>修悦体引擎</title>
+<style>
+  :root { --bg: #f4f2ec; --ink: #141414; --muted: #77746c; --line: #d9d5cb; --panel: #fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1b1b1a; --ink: #f1efe8; --muted: #9a968c; --line: #3a3936; --panel: #232322; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, "Hiragino Sans GB", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 12px; }
+  textarea { width: 100%; min-height: 96px; padding: 10px 12px; font: 18px/1.5 "Hiragino Sans GB", sans-serif;
+             color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  .bar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 10px 0 20px; color: var(--muted); font-size: 13px; }
+  .bar label { display: inline-flex; gap: 6px; align-items: center; }
+  #out { display: flex; flex-direction: column; gap: 14px; }
+  #out svg { display: block; max-width: 100%; height: auto; color: var(--ink); }
+  .pending { color: var(--muted); font: 28px/1.2 "Hiragino Sans GB", sans-serif; letter-spacing: 0.1em; min-height: 1.2em; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>修悦体引擎</h1>
+  <textarea id="in" spellcheck="false" placeholder="输入一行，按回车生成">新宿駅南口改札・左側通行
+東口広場 関係者以外立入禁止
+</textarea>
+  <div class="bar">
+    <label><input type="checkbox" id="align" checked> 整行对齐</label>
+    <label>骨架 <select id="lang"><option value="auto">自动</option><option value="zh">中文</option><option value="ja">日文</option></select></label>
+    <label>字高 <input type="range" id="size" min="40" max="200" value="96"></label>
+  </div>
+  <div id="out"></div>
+  <p class="note">每按一次回车，上一行整体计算一次：各字的横线就近并到同一高度，手搭的字只微调，照骨架生成的字可多挪。未完成的那一行先显示原文。</p>
+</main>
+<script src="data.js"></script>
+<script src="engine.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const cache = new Map();
+  function render() {
+    const lines = $("in").value.split("\n");
+    const done = lines.slice(0, -1), pending = lines[lines.length - 1];
+    const k = +$("size").value, opts = { align: $("align").checked, lang: $("lang").value };
+    const key = (t) => `${t}|${opts.align}|${opts.lang}`;
+    $("out").innerHTML = done.map((t) => {
+      if (!t.trim()) return "<div style='height:" + k / 3 + "px'></div>";
+      if (!cache.has(key(t))) cache.set(key(t), TapeEngine.layoutLine(t, TAPE_DATA, opts));
+      return TapeEngine.lineSVG(cache.get(key(t)), k);
+    }).join("") + `<div class="pending" style="font-size:${k * 0.3}px">${pending.replace(/[<&]/g, (c) => ({ "<": "&lt;", "&": "&amp;" })[c])}</div>`;
+  }
+  $("in").addEventListener("keyup", (e) => { if (e.key === "Enter" || e.key === "Backspace") render(); });
+  ["align", "lang", "size"].forEach((id) => $(id).addEventListener("input", render));
+  render();
+</script>
+</body>
+</html>

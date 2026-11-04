@@ -2,6 +2,8 @@
 
 Research date: 2026-11-03. The book 『ガムテープで文字を書こう！』(世界文化社, 2009, B5, 95 p, ISBN 978-4-418-09205-5) has no online preview (no Google Books entry, no なか見!検索 text found). Everything below comes from the book's table of contents, reader reviews, and two photo-documented live demos by Sato (RocketNews24 2016, ジモコロ 2023). Photos were looked at directly. Confidence: H = seen in Sato's own demo photos or stated by him, M = one secondary source, L = inference.
 
+This describes Sato's signs. The font's own standard (tape 0.11, cell 0.68) is in docs/building_glyphs.md.
+
 ## The main finding: it is subtractive, not stroke-by-stroke
 
 Sato does not lay one strip per stroke. He works like this:
