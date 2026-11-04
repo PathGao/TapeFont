@@ -25,7 +25,8 @@
     minSeg: 0.059,    // drop skeleton end segments shorter than this (hook tails)
     join: 1.5,        // a skeleton stroke end within this many tapes of another stroke joins it
     slit: 0.035,      // skeleton glyphs: least white between two facing parallel strips
-    minW: 0.075,      // skeleton glyphs too dense for that get thinner tape, down to this
+    hair: 0.012,      // ...unless the cell is too crowded: then down to this hairline slit
+    minW: 0.075,      // skeleton glyphs: crowded cells get thinner tape (about as much white as tape), down to this
     maxStretch: 1.8,  // skeleton glyphs fill the cell, up to this stretch per axis
     handStretch: 1.15,// hand glyphs fill the cell, up to this stretch per axis
     handStretchX: 1.3,// ...sideways up to this (narrow kana like く would leave holes in the row)
@@ -131,10 +132,10 @@
   }
 
   // Sato lays strips on a grid with real white between them. Facing parallel strips
-  // (overlapping along their length) are pushed apart to one tape + P.slit; near-equal
-  // levels merge into one shared line. If the cell is too small for that, the tape gets
-  // thinner (down to P.minW). The glyph is then warped (monotone, piecewise linear) so
-  // diagonals and ends follow their strips. k = 1: horizontal strips/y, k = 0: vertical/x.
+  // (overlapping along their length) are pushed apart to one tape + P.slit, as little as
+  // possible; near-equal levels merge into one shared line. Crowded cells get thinner tape
+  // (down to P.minW). The glyph is then warped (monotone, piecewise linear) so diagonals
+  // and ends follow their strips. k = 1: horizontal strips/y, k = 0: vertical/x.
   function spread(g, k) {
     const groups = [];
     for (const s of g.strips) for (let i = 0; i + 1 < s.length; i++) {
@@ -160,21 +161,24 @@
     const need = lv.map(() => 0);
     for (const [i, j] of pairs) need[j] = Math.max(need[j], need[i] + 1);
     const steps = Math.max(...need);
-    let w = g.w;
-    if (steps && steps * (w + P.slit) > size - w) w = Math.max(P.minW, (size - steps * P.slit) / (steps + 1));
-    const d = w + P.slit * (w / g.w), lo = w / 2, hi = size - w / 2;
-    const p = lv.map((L) => Math.min(Math.max(L.v, lo), hi));
-    for (let it = 0; it < 200; it++) {
-      let moved = false;
-      for (const [i, j] of pairs) {
-        const v = d - (p[j] - p[i]);
-        if (v > 1e-6) { p[i] -= v / 2; p[j] += v / 2; moved = true; }
-      }
-      for (let i = 0; i + 1 < p.length; i++) if (p[i + 1] < p[i]) { const m = (p[i] + p[i + 1]) / 2; p[i] = p[i + 1] = m; moved = true; }
-      for (let i = 0; i < p.length; i++) p[i] = Math.min(Math.max(p[i], lo), hi);
-      if (!moved) break;
-    }
-    if (k === 1 || w < g.w) g.w = Math.min(g.w, w);
+    if (!steps) return;
+    // Crowded cell: thinner tape, so that a chain of `steps` gaps would fit with one tape of white
+    // each. Strips only get pushed apart to P.slit; a chain too long even for
+    // that keeps what fits, down to a hairline slit (Sato's dense-sign block with slits).
+    const w = Math.min(g.w, Math.max(P.minW, size / (2 * steps + 1)));
+    const white = Math.max(P.hair, Math.min(P.slit, (size - w) / steps - w));
+    const d = w + white, lo = w / 2, hi = size - w / 2;
+    const n = lv.length, v = lv.map((L) => L.v), prev = lv.map(() => []), next = lv.map(() => []);
+    for (const [i, j] of pairs) { prev[j].push(i); next[i].push(j); }
+    // up/dn: highest/lowest place each level can take with every chain still fitting the cell
+    const up = [], dn = [], f = [], b = [];
+    for (let j = 0; j < n; j++) up[j] = Math.max(lo, j ? up[j - 1] : lo, ...prev[j].map((i) => up[i] + d));
+    for (let j = n - 1; j >= 0; j--) dn[j] = Math.min(hi, j < n - 1 ? dn[j + 1] : hi, ...next[j].map((m) => dn[m] - d));
+    // least push downwards (f) and upwards (b); both keep order and gaps, so their mean does too
+    for (let j = 0; j < n; j++) f[j] = Math.min(dn[j], Math.max(v[j], up[j], j ? f[j - 1] : lo, ...prev[j].map((i) => f[i] + d)));
+    for (let j = n - 1; j >= 0; j--) b[j] = Math.max(up[j], Math.min(v[j], dn[j], j < n - 1 ? b[j + 1] : hi, ...next[j].map((m) => b[m] - d)));
+    const p = f.map((x, j) => Math.min(Math.max((x + b[j]) / 2, lo), hi));
+    g.w = Math.min(g.w, w);
     const src = lv.map((L) => L.v), snap = new Map();
     lv.forEach((L, i) => L.vs.forEach((v) => snap.set(v, p[i])));
     const warp = (v) => {
