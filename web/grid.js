@@ -606,7 +606,7 @@
         const l = L[0], ax = l.t === "H" ? 0 : 1, ta = l[ax ? "ay" : "ax"], tb = l[ax ? "by" : "bx"];
         const sg = Math.sign(pts[1][ax] - pts[0][ax]) || 1, need = 2 * w - Math.abs(pts[1][ax] - pts[0][ax]), hi = ax ? 1 : a;
         const [ga, gb] = ta && tb ? [0, 0] : ta ? [0, need] : tb ? [need, 0] : [need / 2, need / 2];
-        const lim = (e, v) => { const n = l[e + "n"]; if (!n) return v; const m = (ax ? lvY : colX)(n.l) + n.s * (w / 2 + G.white * w); return n.s > 0 ? Math.max(v, m) : Math.min(v, m); };  // not into the white of a line nearby
+        const lim = (e, v) => { const n = l[e + "n"]; if (!n) return v; const m = (ax ? lvY : colX)(n.l) + n.s * (w / 2 + G.white * w); return Math.min(Math.max(n.s > 0 ? Math.max(v, m) : Math.min(v, m), 0), hi); };  // not into the white of a line nearby
         pts[0][ax] = lim("a", Math.min(Math.max(pts[0][ax] - sg * ga, 0), hi)); pts[1][ax] = lim("b", Math.min(Math.max(pts[1][ax] + sg * gb, 0), hi));
       }
       if (s.foot && L[L.length - 1].t === "V") {
@@ -650,7 +650,7 @@
   // Other ends that stop on a strip's line run on by half a tape (no further than the cell edge) so the corner is filled.
   function mergeCorners(strips, w, a) {
     const S = strips.map((s) => s.filter((p, i) => !i || dist(p, s[i - 1]) > 1e-6)).filter((s) => s.length > 1);
-    const key = (p) => `${p[0].toFixed(4)},${p[1].toFixed(4)}`;
+    const key = (p) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`;
     for (let changed = true; changed; ) {
       changed = false;
       const ends = new Map();
