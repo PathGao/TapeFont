@@ -157,6 +157,15 @@ test("grid: slanted dots with room are slabs along their slant (丷 of 半 关 �
   assert.ok(!gen("霊").polys.some((P) => slanted(P) && P.every((p) => p[1] < 0.4)), "雨 dots became slabs");
 });
 
+test("grid: 冬's two dots are parallel down-right slabs, apart; 言's short bars stay bars", () => {
+  const g = gen("冬"), low = g.polys.filter((P) => P.every((p) => p[1] > 0.45));
+  assert.equal(low.length, 2, JSON.stringify(g.polys));
+  for (const P of low) assert.ok(P[1][0] > P[0][0] && P[1][1] > P[0][1], `not down-right ${JSON.stringify(P)}`);
+  const [A, B] = low.sort((p, q) => p[0][1] - q[0][1]);
+  assert.ok(Math.min(...B.map((p) => p[1])) >= Math.max(...A.map((p) => p[1])) - 1e-9 || Math.max(...B.map((p) => p[0])) < Math.max(...A.map((p) => p[0])), "dots overlap");
+  assert.equal(gen("言").polys.length, 0, "言 got slabs");
+});
+
 test("grid: slab tips are blunt, 撇/捺 of 木 end in the bottom corners", () => {
   for (const ch of CHARS) for (const P of gen(ch).polys) {
     if (P.length !== 4) continue;

@@ -74,6 +74,9 @@
     dotSlant: 0.4,  // a dot whose slant is this far off H and V (sin, ~24°) is a slab along it, not a bar or post
     dotHalf: 0.1,   // ... at least this long each side of its centre (em)
     dotClear: 0.06, // ... and no other stroke this close to it (em)
+    pairDots: 0.25, // two short free bars stacked this close (em) are 冬's two dots
+    pairShift: 0.05, // ... moved this far apart sideways (em)
+    pairLen: 0.26,  // ... shorter than this (em)
     dotLeft: 0.3,  // dots left of this (em) stacked two or more (氵 冫) are bars from the edge on the right part's levels
     dotSnap: 0.12,  // ... snapped to a right-part level this close (em)
     dotLow: 0.7,    // three or more dots below this (em) are 灬: one band split by slits
@@ -506,6 +509,22 @@
     // other dots (氵 冫 灬 and short slanted 点) are never floating squares: a bar or post along the
     // dot's own direction, at least 2 tapes long, joined to a strip it points at within G.dotNear
     const slanted = [];
+    // 冬 寒 終: two short free bars stacked right under each other are its two 点, drawn flat in the
+    // skeleton: they slant down-right like the dots they are (made slabs below)
+    if (!kana && G.pairDots) {
+      const shortH = parsed.filter((s) => s.legs && s.legs.length === 1 && s.legs[0].t === "H" && dist(s.legs[0].a, s.legs[0].b) < G.pairLen
+        && !posts.some((l) => [s.legs[0].a, s.legs[0].b].some((p) => Math.abs(l.a[0] - p[0]) < G.joinSpan && p[1] > Math.min(l.a[1], l.b[1]) - G.joinSpan && p[1] < Math.max(l.a[1], l.b[1]) + G.joinSpan)));
+      const mid = (s) => [(s.legs[0].a[0] + s.legs[0].b[0]) / 2, s.legs[0].a[1]];
+      for (const A of shortH) for (const B of shortH) {
+        const [p, q] = [mid(A), mid(B)];
+        if (p[0] < G.dotLeft || q[1] <= p[1] || q[1] - p[1] > G.pairDots || Math.abs(q[0] - p[0]) > G.joinSpan / 2 || shortH.some((C) => C !== A && C !== B && Math.abs(mid(C)[0] - p[0]) < G.joinSpan)
+          || bars.some((l) => !shortH.some((C) => C.legs[0] === l) && l.a[1] > p[1] - G.pairDots && l.a[1] < q[1] + G.pairDots && p[0] > Math.min(l.a[0], l.b[0]) && p[0] < Math.max(l.a[0], l.b[0]))) continue;  // 言's short bars sit between long ones
+        for (const [s, sh] of [[A, G.pairShift], [B, -G.pairShift]]) {  // the upper one a little right, the lower one left: parallel, apart
+          const c = [mid(s)[0] + sh, mid(s)[1]], h = Math.max(dist(s.legs[0].a, s.legs[0].b), 0.12) / 2 / Math.SQRT2;
+          Object.assign(s.legs[0], { t: "D", a: [c[0] - h, c[1] - h], b: [c[0] + h, c[1] + h] });  // same object: bars/posts lists stay valid
+        }
+      }
+    }
     // 氵 冫: two or more short strokes left of G.dotLeft stay bars (see leftDots below)
     const water = parsed.filter((s) => (s.dot && s.dot[0] < G.dotLeft) || (s.legs && s.legs.length === 1 && dist(s.legs[0].a, s.legs[0].b) < G.dotLen && (s.legs[0].a[0] + s.legs[0].b[0]) / 2 < G.dotLeft)).length >= 2;
     parsed.forEach((s, pi) => {
@@ -523,6 +542,7 @@
         const half = Math.max(vn / 2, G.dotHalf);
         let best = null;
         for (const l of ax ? bars : posts) {
+          if (l.t !== (ax ? "H" : "V")) continue;
           const t = (l.a[ax] - c[ax]) / u[ax], p = [c[0] + t * u[0], c[1] + t * u[1]];
           if (t > half - G.dotNear && t < half + G.dotNear && dist(l.a, l.b) >= G.dotLen && p[o] > Math.min(l.a[o], l.b[o]) - 0.02 && p[o] < Math.max(l.a[o], l.b[o]) + 0.02 && (!best || t < best.t)) best = { t, l, p };
         }
