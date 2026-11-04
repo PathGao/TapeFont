@@ -6,5 +6,3 @@ build/review/
 build/*.json
 node_modules/
 .claude/
-build/compose_compare.png
-build/gate_metrics.tsv

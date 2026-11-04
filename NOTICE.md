@@ -9,7 +9,6 @@ Photos of Sato Shuetsu's tape signs, collected from news articles, blogs and Wik
 ## Stroke skeletons (`data/skeletons.jsonl`, `data/skeletons_ja.jsonl`, `web/data.js`)
 
 - Make Me a Hanzi `graphics.txt` — derived from Arphic PL KaitiM GB and Arphic PL UKai, under the Arphic Public License. https://github.com/skishore/makemeahanzi
-- Make Me a Hanzi `dictionary.txt` (component decompositions), LGPL-3.0+. https://github.com/skishore/makemeahanzi
 - KanjiVG, Copyright (C) 2009-2011 Ulrich Apel, CC BY-SA 3.0. https://kanjivg.tagaini.net/
 - KANJIDIC2 (EDRDG), CC BY-SA 4.0 — only the 常用漢字 list in `data/coverage.md`.
 

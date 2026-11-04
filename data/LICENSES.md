@@ -4,7 +4,7 @@
 
 - Source: https://github.com/skishore/makemeahanzi, file `graphics.txt`. Notice saved in `data/raw/mmah/COPYING`.
 - `graphics.txt` is derived from Arphic PL KaitiM GB and Arphic PL UKai. It is under the **Arphic Public License** (APL): http://ftp.gnu.org/non-gnu/chinese-fonts-truetype/LICENSE
-- `dictionary.txt` from the same repo is LGPL-3.0+ (downloaded to `data/raw/mmah/dictionary.txt`). Only its `decomposition` and `matches` fields are used, to find which strokes form which component when the web engine assembles a character from hand-built components.
+- `dictionary.txt` from the same repo is LGPL-3.0+. We do not use it.
 - The medians are derived from Arphic glyphs, so a font built from them is a derived work under the APL.
 
 ## KanjiVG (src = "kanjivg")

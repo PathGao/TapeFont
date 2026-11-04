@@ -66,7 +66,7 @@ test("lineSVG: one path per drawn glyph", () => {
 });
 
 // 鷹 is hand-built now; these tests take its hand glyph away to exercise the fallbacks
-const NOHAND = Object.assign({}, DATA, { hand: Object.fromEntries(Object.entries(DATA.hand).filter(([k]) => k !== "鷹")), comp: {} });
+const NOHAND = Object.assign({}, DATA, { hand: Object.fromEntries(Object.entries(DATA.hand).filter(([k]) => k !== "鷹")) });
 
 test("char without a hand glyph is generated from its skeleton", () => {
   assert.ok(DATA.zh["鷹"] || DATA.ja["鷹"]);
@@ -120,38 +120,4 @@ test("optical spacing: narrow glyphs close up, ink never nearer than one gap", (
   }
   const [a, dot, b] = lay("新・新").chars;
   assert.ok(dot.x < a.x + a.width + E.P.gap - 0.05 && b.x - dot.x < dot.width + E.P.gap - 0.05, "・ closes up");
-});
-
-test("composed chars: built from library parts, deterministic, no NaN", () => {
-  const chars = Object.keys(DATA.comp);
-  assert.ok(chars.length > 50, `only ${chars.length} composed chars`);
-  for (const ch of chars) {
-    assert.ok(!DATA.hand[ch], ch);
-    const g = E.glyphFor(ch, "zh", DATA);
-    assert.ok(g && g.composed && g.skel === 0, `${ch} not composed from parts`);
-    const L = lay(ch);
-    assert.ok(L.chars[0].shapes.length > 0, `no shapes for ${ch}`);
-    assert.ok(!JSON.stringify(L).includes("null"), `NaN/Infinity in ${ch}`);
-    assert.equal(JSON.stringify(L), JSON.stringify(lay(ch)));
-  }
-});
-
-test("composed glyphs in a line: ink inside the cell", () => {
-  const L = lay(Object.keys(DATA.comp).slice(0, 12).join(""));
-  for (const c of L.chars) for (const s of c.shapes) for (const v of s) {
-    const p = v.q ? v.p : v;
-    assert.ok(p[0] > -0.02 && p[0] < c.width + 0.02 && p[1] > -0.02 && p[1] < 1.02, `${c.ch} ink outside its cell`);
-  }
-});
-
-test("a component without a library part is built from its own skeleton strokes", () => {
-  const ch = "鷹", n = DATA.zh[ch].length;  // fake tree: 广 (library part) around the rest (no part)
-  const rest = [...Array(n - 3).keys()].map((i) => i + 3);
-  const data = Object.assign({}, NOHAND, { comp: { [ch]: ["zh", [ch, "", [0, 0, 1000, 1000], [
-    ["广", "tare", [0, 0, 1000, 1000], [0, 1, 2]], ["", "tarec", [300, 300, 1000, 1000], rest]]]] } });
-  const g = E.glyphFor(ch, "zh", data);
-  assert.ok(g.composed && g.skel === n - 3);
-  const L = E.layoutLine(ch, data);
-  assert.ok(L.chars[0].shapes.length > 3);
-  assert.ok(!JSON.stringify(L).includes("null"));
 });
