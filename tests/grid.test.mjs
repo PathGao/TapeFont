@@ -149,6 +149,16 @@ test("grid: no more holes than the skeleton has; frames stay closed, end-to-end 
   for (const ch of ["林", "伞", "鉄"]) assert.equal(Gr.holes(gen(ch)), 0, ch);
 });
 
+test("grid: 竖钩 and 横折钩 with a left hook end in a left foot (刂 卩)", () => {
+  for (const ch of ["到", "列", "即"]) {
+    const ok = gen(ch).strips.some((s) => {
+      const n = s.length, [p, q, r] = [s[n - 3], s[n - 2], s[n - 1]];
+      return p && Math.abs(p[0] - q[0]) < 1e-9 && q[1] - p[1] > 0.25 && Math.abs(q[1] - r[1]) < 1e-9 && r[0] < q[0];
+    });
+    assert.ok(ok, `${ch} has no post with a left foot`);
+  }
+});
+
 test("grid: kana marks keep the base and sit in the top-right corner", () => {
   const a = E.P.aspect;
   for (const [ch, base, n] of [["ど", "と", 2], ["ブ", "フ", 2], ["ぷ", "ふ", 1]]) {

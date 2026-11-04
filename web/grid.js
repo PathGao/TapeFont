@@ -28,6 +28,7 @@
     dot: 0.11,      // a stroke shorter than this (em) is a dot
     serif: 0.045,   // a first leg shorter than this is an entry serif, dropped
     hook: 0.14,     // a last leg shorter than this that turns sharply is a hook tail
+    hookCorner: 0.05, // ... legs shorter than this before it are the corner into it (the hook turns off the leg before them)
     bar: 0.3,       // a shallow 撇/提 shorter than this (em) becomes a flat bar
     join: 0.055,    // a leg end this close (em, half a tape) to another strip's line touches it
     joinSpan: 0.1,  // ... if it is within this of the strip's span
@@ -117,11 +118,14 @@
     while (legs.length > 1 && dist(legs[0].a, legs[0].b) < G.serif) legs.shift();
     let foot = 0;
     if (legs.length > 1) {
-      const h = legs[legs.length - 1], p = legs[legs.length - 2];
+      // the leg before the hook, past short legs of the skeleton's rounded corner into it (刂 卩)
+      let pi = legs.length - 2;
+      while (pi > 0 && dist(legs[pi].a, legs[pi].b) < G.hookCorner) pi--;
+      const h = legs[legs.length - 1], p = legs[pi];
       const u = [h.b[0] - h.a[0], h.b[1] - h.a[1]], v = [p.b[0] - p.a[0], p.b[1] - p.a[1]];
       const cos = (u[0] * v[0] + u[1] * v[1]) / (Math.hypot(...u) * Math.hypot(...v) || 1);
       if (dist(h.a, h.b) < G.hook && cos < 0.5) {
-        legs.pop();
+        legs.splice(pi + 1);
         if (p.t === "V" && u[0] < 0) foot = -1;                          // 亅: post turns left into a foot
         else if (p.t === "H" && u[1] < 0) legs.push({ t: "V", a: h.a, b: [h.a[0], Math.min(h.b[1], h.a[1] - 0.08)] });  // 乚: up-tick
       }
