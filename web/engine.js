@@ -41,6 +41,7 @@
     optical: 0.5,     // spacing: share of the extra white between two glyphs' ink given back
     opticalBase: 0.04,// ...extra = mean white per row beyond this
     opticalCap: 0.17, // ...counting at most this much white on each side of a row
+    generator: "grid",  // chars without a hand glyph: "grid" (Sato's lattice, web/grid.js) or "trace" (old centerline trace)
   };
   const MARKS = "ー一、。・.,〜!-ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶゕゖ";
   const KANA = /[぀-ヿ]/;
@@ -235,11 +236,21 @@
     return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   }
 
+  function skeletonOf(ch, lang, data) {
+    const order = lang === "ja" ? ["ja", "zh"] : ["zh", "ja"];
+    for (const k of order) if (data[k][ch]) return data[k][ch];
+    return null;
+  }
+
+  const Grid = typeof module !== "undefined" ? require("./grid.js") : root.TapeGrid;
+  function generate(ch, strokes, gen = P.generator) {
+    return gen === "grid" ? Grid.build(ch, strokes, P) : fromSkeleton(ch, strokes);
+  }
+
   function glyphFor(ch, lang, data) {
     if (data.hand[ch]) return fromHand(ch, data.hand[ch]);
-    const order = lang === "ja" ? ["ja", "zh"] : ["zh", "ja"];
-    for (const k of order) if (data[k][ch]) return fromSkeleton(ch, data[k][ch]);
-    return null;
+    const sk = skeletonOf(ch, lang, data);
+    return sk ? generate(ch, sk) : null;
   }
 
   // ---------- line solve ----------
@@ -548,7 +559,7 @@
     return out;
   }
 
-  const api = { P, layoutLine, lineSVG, flatten };
+  const api = { P, layoutLine, lineSVG, flatten, skeletonOf, generate };
   root.TapeEngine = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);

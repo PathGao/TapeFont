@@ -202,7 +202,7 @@ def checks():
 def fallback():
     hand, _ = engine(["東京駅 中央線"], k=110)
     gen, _ = engine(["鷹 鷲 鶴 龍 曜"], k=110)
-    pad(stack([titled(tint(hand), "手搭的字"), titled(tint(gen), "没有手搭字时，引擎从骨架生成（笔画多的字仍偏黑）")], 30), 40).save(OUT / "fallback.png")
+    pad(stack([titled(tint(hand), "手搭的字"), titled(tint(gen), "没有手搭字时，引擎按格子从骨架结构生成（笔画多的字仍偏黑）")], 30), 40).save(OUT / "fallback.png")
 
 
 if __name__ == "__main__":

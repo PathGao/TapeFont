@@ -92,10 +92,11 @@ node web/cli.js "新宿駅南口改札|左側通行" out.json
 一行文字
   │
   ├─ 每个字取字形 ──── 有手搭字？ ── 是 → glyphs/manual/<码位>.json
-  │                                  └ 否 → 中日文笔画骨架 → 拉直、吸附横竖
-  │                                         → 笔画挤的字胶带变细（最细 0.075）
-  │                                         → 相对的横/竖之间强制留白缝，只推开必要的距离
-  │                                         → 端点沿自身方向接到邻笔，短点变方块
+  │                                  └ 否 → 按佐藤的格子生成（web/grid.js）：
+  │                                         骨架只用来认笔画：横、竖、折、撇捺提、点、钩
+  │                                         → 横归到等距的横线，竖归到等距的竖线，平行条之间至少 0.3 胶带白
+  │                                         → 太挤就换细胶带（0.11 → 0.07），再挤就只留细缝（实心块加细缝）
+  │                                         → 折是一条带圆弯的胶带，撇捺是一条齐切的斜条，点是方块，钩去掉或变成脚
   │
   ├─ 整行对齐 ────── 收集所有字的横线高度，相近的并成共通线
   │                  每个字：被窄白缝（不到一个胶带宽）连着的几根横算一组，整组平移
@@ -114,7 +115,21 @@ node web/cli.js "新宿駅南口改札|左側通行" out.json
 
 ![整行对齐前后对比](docs/images/alignment.png)
 
-没有手搭字时，引擎从骨架生成。简单的字能读，笔画多的字还偏黑，这些字要靠继续手搭来补：
+没有手搭字时，引擎按佐藤的做法从骨架结构生成：先定这个字有几条横线、几条竖线，等距铺开，再把每一笔落到线上。旧的描骨架生成器（照描笔画中线再拉直）还在，`TapeEngine.P.generator = "trace"` 或 `node web/cli.js ... --gen=trace` 切回去。
+
+两个生成器和手搭字的差距用 `src/grid_eval.py` 量：每个有手搭字的字都从骨架生成一遍，和手搭字比 IoU、笔画覆盖、空洞数、最窄白缝，按笔画数分简单（≤8）、中等、密（16+）；随机留出 20% 的字只用来最后检验。
+
+```bash
+.venv/bin/python -I src/grid_eval.py --split test --sheet   # 留出集成绩 + build/grid_compare.png（手搭 | 旧 | 新）
+```
+
+| 留出集 124 字，IoU 均值 | 旧（trace） | 新（grid） |
+|---|---|---|
+| 全部 | 0.442 | 0.489 |
+| 简单 80 | 0.407 | 0.466 |
+| 中等 43 | 0.503 | 0.532 |
+
+笔画多的字还偏黑，这些字要靠继续手搭来补：
 
 ![手搭字与骨架生成字](docs/images/fallback.png)
 
@@ -148,13 +163,14 @@ node web/cli.js "新宿駅南口改札|左側通行" out.json
 ```
 TapeFont/
 ├── glyphs/manual/      695 个定稿字形（<码位>.json）；src 指向照片描字，null 表示没有照片
-├── web/                引擎 engine.js、页面 index.html、命令行 cli.js、导出数据 data.js
+├── web/                引擎 engine.js、格子生成器 grid.js、页面 index.html、命令行 cli.js、导出数据 data.js
 ├── src/
 │   ├── tape.py         字形 → build/hand.ttf
 │   ├── manual.py       渲染一个字，和照片描字比对
 │   ├── export_web.py   字形 + 骨架 → web/data.js
 │   ├── raster_web.py   引擎输出 → PNG
 │   ├── preview.py      完整度、辨识度检查
+│   ├── grid_eval.py    骨架生成器对手搭字的评分
 │   ├── review_sheet.py 评审对照图
 │   ├── compare.py      照片描字和字体并排对比
 │   ├── trace.py        从照片描字
