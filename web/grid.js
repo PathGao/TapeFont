@@ -67,7 +67,10 @@
     dotPost: 0.25,  // a top dot this close (em) above a bar is a post down to it
     dotLen: 0.2,    // a lone diagonal shorter than this (em) is a dot (氵 灬 点)
     dotNear: 0.143, // a dot whose end is this close (em, a tape and its white) to a bar or post it points at is joined to it
-    dotLeft: 0.3,   // dots left of this (em) stacked two or more (氵 冫) are bars from the edge on the right part's levels
+    dotSlant: 0.4,  // a dot whose slant is this far off H and V (sin, ~24°) is a slab along it, not a bar or post
+    dotHalf: 0.1,   // ... at least this long each side of its centre (em)
+    dotClear: 0.06, // ... and no other stroke this close to it (em)
+    dotLeft: 0.3,  // dots left of this (em) stacked two or more (氵 冫) are bars from the edge on the right part's levels
     dotSnap: 0.12,  // ... snapped to a right-part level this close (em)
     dotLow: 0.7,    // three or more dots below this (em) are 灬: one band split by slits
     dotSlit: 1,    // ... white between its pieces, in tapes
@@ -483,14 +486,38 @@
     }
     // other dots (氵 冫 灬 and short slanted 点) are never floating squares: a bar or post along the
     // dot's own direction, at least 2 tapes long, joined to a strip it points at within G.dotNear
-    for (const s of parsed) {
+    const slanted = [];
+    // 氵 冫: two or more short strokes left of G.dotLeft stay bars (see leftDots below)
+    const water = parsed.filter((s) => (s.dot && s.dot[0] < G.dotLeft) || (s.legs && s.legs.length === 1 && dist(s.legs[0].a, s.legs[0].b) < G.dotLen && (s.legs[0].a[0] + s.legs[0].b[0]) / 2 < G.dotLeft)).length >= 2;
+    parsed.forEach((s, pi) => {
       const D = s.legs && s.legs.length === 1 && !s.pie && dist(s.legs[0].a, s.legs[0].b) < G.dotLen ? s.legs[0] : null;
-      if (!D && !s.dir) continue;
-      if (D && D.t !== "D") { s.short = true; s.c = [(D.a[0] + D.b[0]) / 2, (D.a[1] + D.b[1]) / 2]; continue; }  // a short bar or post (口 side, 冫 dot drawn flat) keeps its touches, only grows to 2 tapes
+      if (!D && !s.dir) return;
+      if (D && D.t !== "D") { s.short = true; s.c = [(D.a[0] + D.b[0]) / 2, (D.a[1] + D.b[1]) / 2]; return; }  // a short bar or post (口 side, 冫 dot drawn flat) keeps its touches, only grows to 2 tapes
       const c = D ? [(D.a[0] + D.b[0]) / 2, (D.a[1] + D.b[1]) / 2] : s.dot, v = D ? [D.b[0] - D.a[0], D.b[1] - D.a[1]] : s.dir;
-      if (!kana && barUnder(c)) { s.dot = c; s.legs = null; continue; }
-      if (D && !kana && c[0] < G.dotLeft && v[0] > 0 && v[1] < 0) continue;  // 氵's 提 stays a slab
+      if (!kana && barUnder(c)) { s.dot = c; s.legs = null; return; }
+      if (D && !kana && c[0] < G.dotLeft && v[0] > 0 && v[1] < 0) return;  // 氵's 提 stays a slab
       const ax = Math.abs(v[1]) > Math.abs(v[0]) ? 1 : 0, o = 1 - ax, sg = Math.sign(v[ax]) || 1, ex = Math.max(Math.abs(v[ax]) / 2, 0.02);
+      const vn = Math.hypot(...v) || 1, u = [v[0] / vn, v[1] / vn];
+      // a slanted dot (丷 of 半 关 光, 冬's dots) is a short slab along its own slant, as Sato cuts them,
+      // run on to the bar or post it points at; a slab that closes a hole the skeleton lacks is a bar or post again (buildHoles)
+      if (!kana && G.dotSlant && !(water && c[0] < G.dotLeft) && !(cut && cut.has("d" + pi)) && Math.min(Math.abs(u[0]), Math.abs(u[1])) > G.dotSlant) {
+        const half = Math.max(vn / 2, G.dotHalf);
+        let best = null;
+        for (const l of ax ? bars : posts) {
+          const t = (l.a[ax] - c[ax]) / u[ax], p = [c[0] + t * u[0], c[1] + t * u[1]];
+          if (t > half - G.dotNear && t < half + G.dotNear && dist(l.a, l.b) >= G.dotLen && p[o] > Math.min(l.a[o], l.b[o]) - 0.02 && p[o] < Math.max(l.a[o], l.b[o]) + 0.02 && (!best || t < best.t)) best = { t, l, p };
+        }
+        const a0 = [c[0] - u[0] * half, c[1] - u[1] * half], b0 = best ? best.p : [c[0] + u[0] * half, c[1] + u[1] * half];
+        // only where it has room: no other stroke within G.dotClear of it (雨's dots in their frame stay bars)
+        const T = dist(a0, b0) - (best ? G.dotClear : 0);
+        const clear = parsed.every((o) => o === s || !o.legs || o.legs.every((l) => l === (best && best.l) || [0, 0.25, 0.5, 0.75, 1].every((f) => lineSegDist([a0[0] + u[0] * T * f, a0[1] + u[1] * T * f], l.a, l.b) >= G.dotClear)));
+        if (clear) {
+          s.legs = [Object.assign(D || { mid: [] }, { t: "D", a: a0, b: b0 })];
+          s.dot = null; s.isDot = true; s.legs[0].isDot = true; s.c = c; s.slantTo = best && { l: best.l, ax };
+          slanted.push("d" + pi);
+          return;
+        }
+      }
       let best = null;
       for (const l of ax ? bars : posts) {
         const g = (l.a[ax] - c[ax]) * sg - ex;  // white from the dot's end to the strip, ahead of the dot
@@ -500,7 +527,7 @@
       const at = (t) => { const p = c.slice(); p[ax] = t; return p; };
       s.legs = [Object.assign(D || { mid: [] }, { t: ax ? "V" : "H", a: at(c[ax] - sg * ex), b: at(best ? best.l.a[ax] : c[ax] + sg * ex) })];  // same object: bars/posts lists stay valid
       s.dot = null; s.isDot = true; s.legs[0].isDot = true; s.c = c;
-    }
+    });
     // 氵 冫: a stack of dots left of the rest is bars on the right part's levels, from the cell edge to
     // just before the right part (drawn in the strip loop below)
     const leftDots = kana ? [] : parsed.filter((s) => s.isDot && s.c[0] < G.dotLeft).sort((p, q) => p.c[1] - q.c[1]);
@@ -541,13 +568,14 @@
       const l = touch(leg[e], leg, axis, G.near);
       return l && { l, s: Math.sign((body ? leg[e === "a" ? "b" : "a"] : leg[e])[axis] - l.a[axis]) || 1 };
     };
-    const touched = [], near = [];
+    const touched = slanted.slice(), near = [];
     st.forEach((s, si) => {
       const f = s.legs[0], l = s.legs[s.legs.length - 1];
       for (const [leg, e] of [[f, "a"], [l, "b"]]) {
         const pt = leg[e], k = si + e, no = cut && cut.has(k);  // a dot touches only the strip it was joined to
         if (leg.t === "H") { leg[e + "x"] = !no && touch(pt, leg, 0, s.isDot && 1e-6); if (!leg[e + "x"]) leg[e + "n"] = nearEnd(leg, e, 0, no || s.isDot); }
         else if (leg.t === "V") { leg[e + "y"] = !no && touch(pt, leg, 1, s.isDot && 1e-6); if (!leg[e + "y"]) leg[e + "n"] = nearEnd(leg, e, 1, no || s.isDot); }
+        else if (s.isDot) { if (!no && e === "b" && s.slantTo) leg[s.slantTo.ax ? "by" : "bx"] = s.slantTo.l; }  // a slanted dot touches only the strip it points at
         else if (!no) { leg[e + "x"] = touch(pt, leg, 0); if (!leg[e + "x"]) leg[e + "y"] = touch(pt, leg, 1); }
         // an end stopped short of a line may be joined to it (a hole the lattice left open, see buildHoles)
         if (leg[e + "n"] && !no && !s.isDot) {
@@ -672,7 +700,10 @@
         const nx = i + 1 < L.length ? corner(l, L[i + 1]) : [endPt(l, "b")];
         nx.forEach((p, j) => { pts.push(p); segs.push(j ? { t: L[i + 1].t === "H" ? "V" : "H" } : l); });
       });
-      if ((s.isDot || s.short) && dist(pts[0], pts[1]) < 2 * w) {  // a dot is at least 2 tapes long, grown at its free ends
+      if (s.isDot && L[0].t === "D") {  // a slanted dot slab: at least 2 tapes, grown at its free start
+        const d = dist(pts[0], pts[1]);
+        if (d < 2 * w && d > 1e-9) { const k = 2 * w / d; pts[0] = [pts[1][0] + (pts[0][0] - pts[1][0]) * k, pts[1][1] + (pts[0][1] - pts[1][1]) * k]; }
+      } else if ((s.isDot || s.short) && dist(pts[0], pts[1]) < 2 * w) {  // a dot is at least 2 tapes long, grown at its free ends
         const l = L[0], ax = l.t === "H" ? 0 : 1, ta = l[ax ? "ay" : "ax"], tb = l[ax ? "by" : "bx"];
         const sg = Math.sign(pts[1][ax] - pts[0][ax]) || 1, need = 2 * w - Math.abs(pts[1][ax] - pts[0][ax]), hi = ax ? 1 : a;
         const [ga, gb] = ta && tb ? [0, 0] : ta ? [0, need] : tb ? [need, 0] : [need / 2, need / 2];
@@ -697,7 +728,7 @@
           : Math.abs(q[1] - p[1]) >= Math.abs(q[0] - p[0]) ? "h" : "v");
         let cp = cut(segs[i - 1], "a"), cq = cut(segs[i + 1], "b");
         const free = (nb, e) => !nb && !l[e + "x"] && !l[e + "y"];
-        const ep = free(segs[i - 1], "a") && toEdge(p, q), eq = free(segs[i + 1], "b") && toEdge(q, p);
+        const ep = !s.isDot && free(segs[i - 1], "a") && toEdge(p, q), eq = !s.isDot && free(segs[i + 1], "b") && toEdge(q, p);
         if (ep) { p = ep.p; cp = ep.c; }
         if (eq) { q = eq.p; cq = eq.c; }
         slab(p, q, cp, cq);

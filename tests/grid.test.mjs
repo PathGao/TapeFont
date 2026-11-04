@@ -129,6 +129,15 @@ test("grid: dots are bars or posts at least 2 tapes long, never squares (氵 灬
   }
 });
 
+test("grid: slanted dots with room are slabs along their slant (丷 of 半 关 光), framed ones stay bars (雨)", () => {
+  const slanted = (P) => { const [p, q] = [P[0], P[1]]; return Math.abs(q[0] - p[0]) > 1e-6 && Math.abs(q[1] - p[1]) > 1e-6; };
+  for (const ch of ["半", "关", "光"]) {
+    const g = gen(ch), top = g.polys.filter((P) => slanted(P) && P.every((p) => p[1] < 0.45));
+    assert.ok(top.length >= 2, `${ch} top dots not slabs ${JSON.stringify(g.polys)}`);
+  }
+  assert.ok(!gen("霊").polys.some((P) => slanted(P) && P.every((p) => p[1] < 0.4)), "雨 dots became slabs");
+});
+
 test("grid: slab tips are blunt, 撇/捺 of 木 end in the bottom corners", () => {
   for (const ch of CHARS) for (const P of gen(ch).polys) {
     if (P.length !== 4) continue;
