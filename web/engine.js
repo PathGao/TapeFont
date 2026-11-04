@@ -9,7 +9,8 @@
  *   2. the line is solved: horizontal levels of all glyphs are clustered, and each glyph is
  *      warped (monotone, piecewise linear in y) so its bars sit on the shared lines, then bar
  *      edges that just miss a neighbour's are moved onto it;
- *   3. strips/polys become outlines with Sato's corners (outer bends rounded ~1 tape,
+ *   3. cells keep one width, but a narrow glyph's extra white to its neighbours is partly closed;
+ *   4. strips/polys become outlines with Sato's corners (outer bends rounded ~1 tape,
  *      strip ends and inner corners square), cuts are kept for masking.
  *
  * Works as a classic <script> (sets globalThis.TapeEngine) and in Node (module.exports).
@@ -37,6 +38,9 @@
     bandChange: 0.35, // line solve: white between two bars (if over one tape) changes by at most this fraction
     minGap: 0.03,     // white between two bars never shrinks below one tape + this
     align: true,      // line solve on/off
+    optical: 0.5,     // spacing: share of the extra white between two glyphs' ink given back
+    opticalBase: 0.04,// ...extra = mean white per row beyond this
+    opticalCap: 0.17, // ...counting at most this much white on each side of a row
   };
   const MARKS = "ー一、。・.,〜!-ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶゕゖ";
   const KANA = /[぀-ヿ]/;
@@ -451,16 +455,55 @@
     return outlines(g).map((p) => rounded(wound(p), g.w, g.sharp));
   }
 
+  // ---------- optical spacing ----------
+
+  const ROWS = 25;
+  function profile(g) {  // per row of the cell: leftmost and rightmost ink x (Infinity / -Infinity: no ink)
+    const L = Array(ROWS).fill(Infinity), R = Array(ROWS).fill(-Infinity);
+    const put = (r, x) => { x = Math.min(Math.max(x, 0), g.aspect); L[r] = Math.min(L[r], x); R[r] = Math.max(R[r], x); };
+    const row = (y) => Math.min(ROWS - 1, Math.floor(y * ROWS));
+    for (const s of outlines(g)) for (let i = 0; i < s.length; i++) {
+      // x is linear along an edge, so its extremes in a row are where the edge enters and leaves it
+      const a = s[i], b = s[(i + 1) % s.length], lo = Math.max(Math.min(a[1], b[1]), 0), hi = Math.min(Math.max(a[1], b[1]), 1);
+      if (lo > hi) continue;
+      const at = (y) => (Math.abs(b[1] - a[1]) < 1e-12 ? null : a[0] + ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]));
+      if (at(lo) === null) { put(row(lo), a[0]); put(row(lo), b[0]); continue; }
+      for (let r = row(lo); r <= row(hi); r++) {
+        put(r, at(Math.max(lo, r / ROWS))); put(r, at(Math.min(hi, (r + 1) / ROWS)));
+      }
+    }
+    return { L, R, w: g.aspect };
+  }
+
+  // Every cell has the same width, so a narrow glyph (く し い ・ 小) leaves a hole in the row.
+  // Give back part of the white between two neighbours' ink (mean over the rows, each side counted
+  // up to P.opticalCap), but never so much that ink in nearby rows comes closer than one gap.
+  function tighten(a, b) {
+    const reach = Math.ceil(P.tolGen * ROWS) + 1;  // rows the line solve may move ink into
+    let room = Infinity, sum = 0, n = 0;
+    for (let r = 0; r < ROWS; r++) {
+      const ra = a.w - a.R[r], lb = b.L[r];
+      if (Number.isFinite(ra) || Number.isFinite(lb)) {
+        sum += Math.min(ra, P.opticalCap) + Math.min(lb, P.opticalCap); n++;
+      }
+      for (let q = Math.max(0, r - reach); q <= Math.min(ROWS - 1, r + reach); q++) room = Math.min(room, ra + b.L[q]);
+    }
+    if (!Number.isFinite(room)) room = a.w - Math.max(...a.R) + Math.min(...b.L);  // no rows near each other
+    return n ? Math.min(Math.max(P.optical * (sum / n - P.opticalBase), 0), Math.max(room - 0.002, 0)) : 0;  // 0.002: the solve shifts miters a hair
+  }
+
   // ---------- public ----------
 
   function layoutLine(text, data, opts = {}) {
     const lang = opts.lang && opts.lang !== "auto" ? opts.lang : KANA.test(text) ? "ja" : "zh";
     const glyphs = [...text].map((ch) => (ch === " " || ch === "　" ? null : glyphFor(ch, lang, data)));
+    const prof = glyphs.map((g) => g && profile(g));  // before the solve: toggling it never moves glyphs sideways
     if (opts.align ?? P.align) solveLine(glyphs);
     let x = 0;
     const chars = [...text].map((ch, i) => {
       const g = glyphs[i];
       const width = ch === "　" ? P.aspect : g ? g.aspect : P.space;
+      if (i && prof[i] && prof[i - 1]) x -= tighten(prof[i - 1], prof[i]);
       const item = { ch, x, width, shapes: g ? shapesOf(g) : [], cuts: g ? g.cuts : [], missing: !g && ch.trim() !== "" };
       x += width + P.gap;
       return item;
