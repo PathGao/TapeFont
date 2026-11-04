@@ -68,6 +68,18 @@ test("grid: kana ticks turn up, い is posts, と starts with a mid bar", () => 
   assert.ok(y0 > 0.3, `と highest bar at ${y0}`);
 });
 
+test("grid: kana bowls are one box of long runs (ち ら), not steps", () => {
+  for (const ch of ["ち", "ら"]) {
+    const g = gen(ch), bowl = g.strips.reduce((b, s) => (s.length > b.length ? s : b), []);
+    assert.equal(g.polys.length, 0, `${ch} has slabs`);
+    const n = bowl.length, seg = (i) => [bowl[i], bowl[i + 1]];
+    const [h1, v, h2] = [seg(n - 4), seg(n - 3), seg(n - 2)];
+    assert.ok(Math.abs(h1[0][1] - h1[1][1]) < 1e-9 && h1[1][0] > h1[0][0], `${ch} bowl top ${JSON.stringify(bowl)}`);
+    assert.ok(Math.abs(v[0][0] - v[1][0]) < 1e-9 && v[1][1] - v[0][1] > 0.2, `${ch} bowl side ${JSON.stringify(bowl)}`);
+    assert.ok(Math.abs(h2[0][1] - h2[1][1]) < 1e-9 && h2[1][0] < h2[0][0], `${ch} bowl bottom ${JSON.stringify(bowl)}`);
+  }
+});
+
 test("grid: 广/厂 撇 is a post under the left end of the top bar", () => {
   for (const ch of ["広", "原", "府"]) {
     const g = gen(ch);

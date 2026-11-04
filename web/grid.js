@@ -24,6 +24,9 @@
 (function (root) {
   const G = {
     eps: 0.03,      // RDP tolerance on the skeleton (em)
+    kanaEps: 0.03,  // ... for kana: coarse, so a curve is a few long legs, never a staircase of short ones
+    kanaJog: 0.05,  // kana: a leg shorter than this between two parallel legs is a step, dropped (em)
+    kanaCorner: 0.2, // kana: a diagonal shorter than this between a bar and a post is a rounded corner, dropped (em)
     hv: 24,         // degrees: a leg this close to horizontal/vertical is H/V
     dot: 0.11,      // a stroke shorter than this (em) is a dot
     serif: 0.045,   // a first leg shorter than this is an entry serif, dropped
@@ -107,7 +110,7 @@
 
   function parse(stroke, kana) {
     const raw = stroke.map((p) => [p[0] / 1000, p[1] / 1000]);
-    const pts = rdp(raw, G.eps);
+    const pts = rdp(raw, kana ? G.kanaEps : G.eps);
     if (len(pts) < G.dot) {
       const c = raw.reduce((s, p) => [s[0] + p[0] / raw.length, s[1] + p[1] / raw.length], [0, 0]);
       return { dot: c, dir: [raw[raw.length - 1][0] - raw[0][0], raw[raw.length - 1][1] - raw[0][1]] };
@@ -177,6 +180,19 @@
         if (L && L.t === l.t && l.t !== "D") L.b = l.b; else out.push(l);
         return out;
       }, []);
+      // a diagonal between a bar and a post is the curve's rounded corner: the two meet at a bend instead (ら ち ろ bowls are a box)
+      legs = legs.filter((l, i) => !(l.t === "D" && i > 0 && i + 1 < legs.length && legs[i - 1].t !== "D" && legs[i + 1].t !== "D" && legs[i - 1].t !== legs[i + 1].t && dist(l.a, l.b) < G.kanaCorner));
+      // a short jog between two parallel legs (a step of the curve) is dropped: the two legs become one
+      // on the longer one's line, so a curve is a few long runs, never a staircase
+      for (let i = 1; i + 1 < legs.length; i++) {
+        const [A, J, B] = [legs[i - 1], legs[i], legs[i + 1]];
+        if (J.t === "D" || A.t !== B.t || A.t === J.t || A.t === "D" || dist(J.a, J.b) >= G.kanaJog) continue;
+        const ax = A.t === "H" ? 1 : 0, v = (dist(A.a, A.b) >= dist(B.a, B.b) ? A : B).a[ax];
+        const pa = A.a.slice(), pb = B.b.slice();
+        pa[ax] = v; pb[ax] = v;
+        legs.splice(i - 1, 3, { t: A.t, a: pa, b: pb, mid: [] });
+        i = 0;
+      }
     }
     // a short diagonal leg of a longer stroke is a thin blade as a slab: it becomes a bar or post, whichever is closer
     if (!kana && !pie && legs.length > 1) {
