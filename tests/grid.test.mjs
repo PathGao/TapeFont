@@ -80,6 +80,13 @@ test("grid: kana bowls are one box of long runs (ち ら), not steps", () => {
   }
 });
 
+test("grid: ろ's diagonal back under its top bar stays a slab", () => {
+  const g = gen("ろ");
+  assert.equal(g.polys.length, 1, JSON.stringify(g));
+  const P = g.polys[0], xs = P.map((p) => p[0]);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > 2 * g.w, "slab is slanted");
+});
+
 test("grid: 广/厂 撇 is a post under the left end of the top bar", () => {
   for (const ch of ["広", "原", "府"]) {
     const g = gen(ch);

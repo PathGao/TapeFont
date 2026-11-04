@@ -26,6 +26,7 @@
     eps: 0.03,      // RDP tolerance on the skeleton (em)
     kanaEps: 0.03,  // ... for kana: coarse, so a curve is a few long legs, never a staircase of short ones
     kanaJog: 0.05,  // kana: a leg shorter than this between two parallel legs is a step, dropped (em)
+    kanaBack: 1,    // kana: a straight diagonal that runs back under a bar stays a slab
     kanaCorner: 0.2, // kana: a diagonal shorter than this between a bar and a post is a rounded corner, dropped (em)
     hv: 24,         // degrees: a leg this close to horizontal/vertical is H/V
     dot: 0.11,      // a stroke shorter than this (em) is a dot
@@ -167,7 +168,9 @@
         const m = l.mid.reduce((best, q) => (lineDist(q, l.a, l.b) > lineDist(best, l.a, l.b) ? q : best), l.mid[0] || null);
         const curved = m && lineDist(m, l.a, l.b) > 0.02;
         // straight 捺 (さ き) and zigzags of straight diagonals (く へ) stay slabs; a 捺 after a post is its foot (い)
-        if (!curved && ((!i && l.b[0] > l.a[0] && l.b[1] > l.a[1]) || nD > 1)) return [l];
+        // so does a straight one that runs back under a bar (ろ る そ): as an L it would fold onto the bar
+        const back = (n) => G.kanaBack && n && n.t === "H" && Math.sign(n.b[0] - n.a[0]) * Math.sign(l.b[0] - l.a[0]) < 0;
+        if (!curved && ((!i && l.b[0] > l.a[0] && l.b[1] > l.a[1]) || nD > 1 || back(legs[i - 1]) || back(legs[i + 1]))) return [l];
         const c = curved ? (dist(m, c2) < dist(m, c1) ? c2 : c1) : c1[1] >= c2[1] ? c1 : c2;
         // a stroke that starts with a curve over the top starts with a bar at mid height (と)
         if (curved && !i && legs.length > 1 && c === c2 && l.b[1] > l.a[1] + 0.1) {
