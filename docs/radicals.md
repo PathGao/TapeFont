@@ -135,6 +135,30 @@ Open `glyphs/manual/<HEX>.json` (HEX = 4-digit uppercase codepoint) of any examp
 ### 車 (left)
 - 転 (P) strips squeezed into x 0.05-0.39: top bar, 田 box with middle bar, bottom bar, center stem full height. Counters cut square. At w 0.09 fill the box and cut four slits (輸).
 
+## Simplified Chinese radicals
+
+- Narrow left parts, ink x 0-0.28. The same centerlines at w 0.11 and at w 0.09 (dense chars).
+- 竖提 is a post with a short foot to the right ending at x 0.28 (no up-tick: it would merge with the post).
+- Right part starts at about x 0.33-0.34 (0.32-0.33 next to 纟).
+- Copy the strips exactly. Examples: 说 计 记 (讠), 经 红 结 (纟), 钱 错 铁 (钅), 饭 (饣).
+
+### 讠
+- Dot post x 0.13, y 0.04-0.2. 横折提 as one strip `[[0,0.4],[0.13,0.4],[0.13,0.945],[0.28,0.945]]`.
+- Put a right-part bar on 0.40 when it has one there (计 让 记).
+
+### 纟
+- Top from 紅: `[[0.055,0.03],[0.055,0.22],[0.18,0.22]]` and `[[0.18,0.03],[0.18,0.31],[0.055,0.41],[0.055,0.52],[0.27,0.52]]`.
+- 提 as a rising slab, vertical end cuts: `(0,0.935)(0.27,0.765)(0.27,0.635)(0,0.805)`, all corners sharp.
+
+### 钅
+- ノ post into the first short bar (午): `[[0.055,0],[0.055,0.2],[0.27,0.2]]`.
+- Bars `[[0,0.44],[0.27,0.44]]` and `[[0.02,0.69],[0.27,0.69]]`.
+- 竖提: `[[0.13,0.2],[0.13,0.945],[0.28,0.945]]`.
+
+### 饣
+- ノ slab from 彳: `(0.112,0)(0.24,0)(0.128,0.2)(0,0.2)`, sharp.
+- 横钩 and 竖提 as one strip: `[[0.28,0.945],[0.07,0.945],[0.07,0.33],[0.22,0.33],[0.22,0.5]]`.
+
 ## Top components
 
 ### 宀
@@ -335,3 +359,124 @@ Open `glyphs/manual/<HEX>.json` (HEX = 4-digit uppercase codepoint) of any examp
 - A (P): inverted U plus a crossbar at 0.453. K (P): post plus two slabs. V: two slabs meeting at a flat foot.
 - F L P are E or R minus strips. M is A plus a middle post.
 - Examples: A E H O S K (P), 0-9 (P, aspect 0.58).
+
+## Simplified Chinese components (门 贝 车 见 马 页 鸟)
+
+Built for the GB forms, w 0.11 unless noted. Each keeps fewer strokes than the traditional 門 貝 車 見 馬 頁 鳥 above: no inner rungs, no doubled doors, an open ∩ frame where the traditional part has a closed 目 box. Copy the numbers. Slabs are one-tape parallelograms with horizontal end cuts, corners in `sharp`.
+
+### 门
+- Full / enclosure (门 问 间): dot post x 0.13 y 0-0.13. Left post x 0.055 y 0.22-1.0. 𠃌 `[[0.23,0.11],[0.625,0.11],[0.625,0.945],[0.45,0.945]]`.
+- Inside part sits at x 0.21-0.46: 口 loop y 0.42-0.76 (问), 日 loop y 0.33-0.84 with bar 0.585 (间).
+- Right of 亻 (们): dot x 0.375 y 0-0.13, left post x 0.3 y 0.22-1.0, 𠃌 `[[0.475,0.11],[0.625,0.11],[0.625,0.945],[0.5,0.945]]`.
+
+### 车
+- Full (车): top bar y 0.17 x 0.04-0.64. 撇折 as one strip from above the top bar, diagonal into the middle bar: `[[0.40,-0.05],[0.14,0.5],[0.64,0.5]]`, trimmed by a frame cut. Stem x 0.42 y 0.5-1.0 (starts at the middle bar, not at the top). Low bar y 0.8 x 0-0.68.
+- Under 冖 (军): same strips with levels 0.36 / 0.62 / 0.85, diagonal from y 0.17. In 连 scaled into x 0.21-0.68, y 0-0.84 (bars 0.14 / 0.42 / 0.68).
+- Left (转 轻): top bar y 0.2 x 0-0.34, `[[0.25,-0.05],[0.07,0.48],[0.34,0.48]]`, stem x 0.2 y 0.48-1.0, low bar y 0.78 x 0-0.34. Right part starts at x 0.38. In 载 (w 0.09) the same form sits at y 0.3-1.0 (bars 0.48 / 0.67 / 0.87).
+
+### 见
+- Full (见, and 觉 squeezed to y 0.42-1.0): ∩ frame `[[0.1,0.6],[0.1,0.055],[0.58,0.055],[0.58,0.6]]`. ノ post x 0.25 from y 0.22 with a foot left to x 0. 乚 post x 0.43 from y 0.4, foot right to 0.625, up-tick to 0.75. Both legs start inside the open frame.
+- Right (现 视 观, x 0.29-0.68): frame `[[0.345,0.56],[0.345,0.08],[0.625,0.08],[0.625,0.56]]`. One center stem x 0.485 from y 0.24 to the base with a foot right to 0.68 (乚). ノ branches off it: `[[0.485,0.62],[0.35,0.945],[0.2,0.945]]`. Left part must end its ink by x 0.29.
+
+### 马
+- Full (马): 𠃍 `[[0.045,0.055],[0.55,0.055],[0.55,0.3]]`. ㇉ `[[0.1,0.055],[0.1,0.45],[0.625,0.45],[0.625,0.945],[0.45,0.945]]`. Low bar y 0.72 x 0-0.5. The 𠃍 post stops short of the middle bar, so no box closes.
+- Narrow, x0 = 0 (left, 验) or 0.325 (right, 妈): `[[x0,0.06],[x0+0.24,0.06],[x0+0.24,0.27]]`, `[[x0+0.05,0.06],[x0+0.05,0.43],[x0+0.3,0.43],[x0+0.3,0.93],[x0+0.19,0.93]]`, low bar y 0.69 x x0-x0+0.19.
+
+### 贝
+- ∩ frame plus 人 (ノ and 丶) as two flush-cut slabs from one apex. Not the 貝 block with slits.
+- Bottom (资 负 责 费): frame posts x 0.1 / 0.58 from y0 down to yb = y0 + 0.55 (1 - y0). Stem x 0.34 from y0 + 0.11 to yb. Slabs from apex (0.34, yb) to (0.15, 1) and (0.53, 1). y0: 资 0.55, 负 0.42, 责 0.45 (w 0.09), 费 0.53 (w 0.09).
+- Left (则 购): frame `[[0.055,0.58],[0.055,0.07],[0.3,0.07],[0.3,0.58]]`, slabs from apex (0.1775, 0.62) to (0.04, 0.97) and (0.315, 0.97). The interior is too narrow for a stem, so the 人 starts at the opening. Right part starts at x 0.4.
+
+### 页
+- 页 = top bar + short stub + the narrow 贝. Right only (题 领 须 顶 顿).
+- w 0.11 (领 须 顶): bar y 0.055 x 0.37-0.68, stub x 0.525 y 0.055-0.2, frame posts x 0.425 / 0.625 from y 0.25 to 0.57, slabs from apex (0.525, 0.6) to (0.4, 0.9) and (0.65, 0.9).
+- w 0.09 (题 顿): bar y 0.05 x 0.35-0.68, stub x 0.515 y 0.05-0.18, frame posts x 0.4 / 0.635 from y 0.21 to 0.56, slabs from apex (0.5175, 0.59) to (0.39, 0.88) and (0.645, 0.88). Feet end at 0.88 so a base bar (是) can pass under.
+
+### 鸟
+- Full 鸟: ノ tick `[[0.4,-0.02],[0.32,0.1]]`; 𠃍 `[[0.12,0.12],[0.56,0.12],[0.56,0.36]]` (stops short of the bar below, box stays open); dot post x 0.33 y 0.22-0.33; ㇉ `[[0.12,0.12],[0.12,0.47],[0.625,0.47],[0.625,0.945],[0.5,0.945]]`; low bar y 0.72 x 0-0.5 (as 马).
+- In 岛 the low bar is dropped and 山 sits inside: U `[[0.05,0.62],[0.05,0.86],[0.42,0.86],[0.42,0.62]]` + post x 0.235. Compare 島, which keeps the 目 box.
+
+### Complex characters (w 0.07–0.09): C1
+- w 0.08 for the group, 0.07 for 儡 嚇 囊. Same centerlines as below in every char that uses the part. Frame cut on all.
+- ⺮: `[[0.04,0.17],[0.04,0.04],[0.28,0.04]]` + tick x 0.17 y 0.09-0.17; same at x 0.39 / 0.66, tick 0.53. Rest starts at y 0.2 (築 篙 篤 篮 篱 篷 簇 簡 簧 簿 籍 籠 篡).
+- 口 left: loop on ink x 0-0.22, y 0.3-0.68; right part x 0.27-0.68 (嘴 噬 噪 嚇 嚎 嚏 嚷 嚼).
+- 月 left: `[[0.04,1],[0.04,0.04],[0.2,0.04],[0.2,0.96],[0.12,0.96]]`, rungs 0.34 / 0.63; right part from 0.29 (膨 膳 臃 臆). 月 below: `[[0.14,1],[0.14,0.62],[0.56,0.62],[0.56,0.96],[0.46,0.96]]`, rungs 0.74 / 0.85 (臀 臂).
+- 土 left: post x 0.11 y 0.2-0.86, bar y 0.38 x 0.01-0.22, rising slab (0,0.93)-(0.23,0.77) (壇 壕 壤). 土 below: bar y 0.72 x 0.12-0.56, stem x 0.34, base 0.955 (壁 墾).
+- 亻: post x 0.12, tab y 0.46 (儒 償 儡). 心 below: 意 form at y 0.8, U `[[0.24,0.8],[0.24,0.96],[0.58,0.96],[0.58,0.92]]`, dots x 0.36-0.44 inside, 0.6-0.68 above the hook (憩 憲 懇 懲 懸).
+- Shared right parts at x 0.24/0.27-0.68: 需 (儒 孺), 豪 (嚎 壕), 襄 (嚷 壤), 辟 at y 0-0.55 (臂 壁), 豸艮 at y 0-0.62 (墾 懇). Copy them from those glyphs.
+- 口 too small for strips becomes a block with slits or a square hole (篡 目, 懸 目, 囊 口, 壇 inner 口). 田 pairs in 儡 share their middle post.
+
+### Complex characters (w 0.07–0.09): C4
+- w 0.07 for the whole group. Frame cut on all. Copy centerlines from the glyph named in brackets.
+- 言 left (諦 諧 諭 諮 諾 謀): dot x 0.13 y 0-0.09, bars y 0.16 (x 0-0.26), 0.29 / 0.42 (x 0.025-0.235), 口 loop ink x 0.02-0.24, y 0.55-0.94. Right part from x 0.29.
+- 糸 left (績 織 繕 繰; 羅 squeezed to y 0.29-1): zigzags `[[0.16,-0.03],[0.035,0.18],[0.18,0.18]]`, `[[0.255,0.07],[0.035,0.44],[0.26,0.44]]`, tick x 0.225 y 0.3-0.44, stem x 0.145 from 0.44, dots x 0.035 / 0.245 y 0.6-0.88. Right part from 0.31.
+- 艹 top: bar y 0.06 x 0.02-0.66, posts x 0.2 / 0.48 y 0-0.125. Content starts at ink y 0.155 (蕾 薄 薛 薦 薪 薯 藉 藍 藏 藐 藕 藩 藻 蘑 蘸 繭).
+- 氵 under 艹: bars y 0.25 / 0.5 x 0-0.14, rising slab (0,0.93)-(0.16,0.73), cut vertical (薄 藩 藻).
+- 耒 left: bars 0.07 / 0.19 / 0.31 of the height under y0, stem x 0.14, leg slabs under the third bar (耪 full height, 藉 藕 from y 0.16).
+- 虫 left: box ink x 0-0.28, y 0.18-0.58 split by the stem (counters 0.035), stem from 0.06, base bar 0.93, square dot x 0.215-0.28 between (螟 螺 蠕). Below (蟹 蠢): same with a flat box; 蠢 puts the dot as a tab on the base bar.
+- 羽 (翰 翱 翻 翼 耀): two Γ hooks with 0.03 between; each tick is a small square inside the hook. 隹 (罐 羅 耀 蘸): ノ slab, left post, stem from the top, three short bars right of the post, base bar joining the post.
+- 臣 (臨 藏, 監 in 艦 藍): top bar, left post, base bar, inner box on the post with a mid bar. Needs about 0.47 of height for open counters, so 藍 gives 臣 0.6 of its height. 皿: ∩ frame with two inner posts on a wider base bar.
+- Shared parts: 釆 (翻 藩), 喿 (繰 藻), 亲 left (薪 親), 雨 (蕾 需 in 蠕), 𧘇 (襄 襲).
+- Hairline 0.02 slits only where four verticals share 0.33 or less: 酉 in 蘸, 繭 inner 糸 dots and 虫 block, 興 middle.
+
+### Complex characters (w 0.07–0.09): C5
+- w 0.07 for the whole group. Left radicals keep ink x 0-0.28; right part ink x 0.31/0.32-0.68. Same centerlines in every char that uses the part.
+- 言 left: dot x 0.14 y 0-0.12, bars y 0.16 (x 0-0.28) / 0.31 / 0.46 (x 0.04-0.24), 口 loop x 0.06-0.22, y 0.62-0.94 (謁 謎 謙 講 謝 識 譜).
+- 足 left: 口 loop x 0.05-0.23, y 0.05-0.36; stem x 0.165 y 0.36-0.95; tab y 0.62 to 0.28; left post x 0.04 y 0.58-0.95; base y 0.95 x 0-0.28 (蹄 … 躍).
+- 金 left: roof slabs from (0.14,0) to (0.03,0.2) / (0.25,0.2); bars 0.30 (x 0.04-0.24) and 0.46 (x 0-0.28); stem x 0.14 y 0.30-0.92; dots as squares x 0-0.065 / 0.215-0.28, y 0.57-0.71; base 0.92 (鋼 … 鎖).
+- 酉 left: bar y 0.05, block x 0-0.28 y 0.15-0.97 with two 0.04 slits (x 0.07-0.11, 0.17-0.21, y 0.22-0.56) and a counter x 0.07-0.21 y 0.63-0.90, so the 儿 legs read as posts (醒 醚 醛 醜).
+- 貝 left (購 贈): loop x 0.04-0.24, y 0.05-0.71, bars 0.27 / 0.49, foot slabs (0.08,0.78)-(0.03,1) and (0.20,0.78)-(0.25,1). 贝 left (赠 赡): standard 贝 left squeezed to x 0.04-0.24.
+- 車 left (轄): bars 0.05 / 0.78 x 0-0.28, stem x 0.14, 田 xs 0.035 / 0.14 / 0.245, ys 0.19 / 0.38 / 0.57 with cut counters. 车 left (辙): standard 车 left squeezed to x 0-0.24.
+- 辶 (避 邀 還): dot bar y 0.10 x 0-0.12, L `[[0,0.40],[0.08,0.40],[0.08,0.955]]`, base y 0.955 to 0.68. Right part x 0.17-0.68, y 0-0.86.
+- 辛 narrow (辨 辩 辫, and 避 at 0.86 height): 0.2 wide around cx: dot, bars 0.14 / 0.40 / 0.62, 丷 posts at cx±0.06 y 0.23-0.40, stem from 0.40 to the base. cx 0.10 left, 0.58 right; middle part sits in x 0.23-0.45.
+- Shared right parts: 冓 (講 購), 曽/曾 (贈 赠 蹭), 迷 (謎 醚), 害 (轄, moved to the left half in 豁).
+- 口 too small for strip walls becomes a block with a square counter, walls 0.045 (錮 鍋 譬); 山 in 岡 is a block with two slits (鋼).
+
+### Complex characters (w 0.07–0.09): C2
+- w 0.07 for the whole group. Pitch between parallel centerlines 0.1 (white 0.03). Edge centers 0.035 / 0.645. Frame cut on all.
+- 忄: posts x 0.035 / 0.135 full height, x 0.235 y 0-0.53. Right part from 0.34 (憶 憾 懈 懒 懦).
+- 扌: stem x 0.09, bar y 0.27 x 0-0.2, rising slab (0,0.84)-(0.2,0.65) cut vertical. Right part from 0.27 (撼 擁 擂 擅 操 擞 擦 擬 攒 攘 攫).
+- 木 left: bar y 0.17 x 0-0.28, stem x 0.14, legs `[[0.11,0.23],[0.035,0.58],[0.035,0.965]]` and `[[0.17,0.23],[0.25,0.6]]`. Right part from 0.35 (樹 橇 橋 橙 橱 檀 檄 檬 欄).
+- 氵: bars x 0-0.16 at y 0.11 / 0.39, rising slab (0,0.93)-(0.17,0.66) cut vertical. Right part from 0.24 (潞 澡 激 濁 濃 濒 濫 濯 瀑 灌).
+- 日 left: loop x 0.035-0.175, y 0.2-0.8, bar 0.5. Right part from 0.28 (曖 曙 曜 曝).
+- 火 left: dot post x 0.03 y 0.26-0.44, right dot (0.25,0.22)-(0.21,0.4), stem x 0.13 to y 0.58 then diagonal off the bottom left, dot (0.165,0.68)-(0.26,0.84). Right part from 0.34 (燃 燎 燥 爆).
+- 心 below a right part: four columns at x 0.34 / 0.44 / 0.54 / 0.64 from y 0.74: left dot, hook post with foot right to the edge, two dots (憶 憾 撼).
+- 隹: post L, stem L+0.1, dot L+0.2 at the top, ノ strip from the stem top to the post, three bars right of the stem, base bar from the post (擁 曜 濯 灌 戳 攫).
+- Shared right parts drawn with the same construction, x scaled to the region: 感 (憾 撼), 亶 (擅 檀), 喿 (操 澡 燥), 敫 (檄 激), 翟 (曜 濯, narrow in 戳), 暴 (曝 瀑 爆).
+- Where three columns do not fit (角 in 懈, 束 in 懒, 目目 in 攫, 柬 in 欄, 负 in 懒) the part is a block with 0.02-0.05 cut counters.
+
+### Complex characters (w 0.07–0.09): C6
+- w 0.08 where the part has room, 0.07 for the dense ones. Frame cut on all. Copy centerlines from the glyph named in brackets.
+- 金 left: the C5 金 as is, ink x 0-0.28; right part from ink 0.31 (鎮 鏡 鐘 鑑). 钅: the standard one unchanged; right part from 0.33 (镜 … 镶).
+- 雨 top, full width, y 0-0.345: bar 0.035, frame `[[0.045,0.345],[0.045,0.15],[0.635,0.15],[0.635,0.345]]`, stem x 0.34, dots as 0.03 bars x 0.13-0.25 / 0.43-0.55 at y 0.22 and 0.285. Lower part ink from y 0.38 (霍 霓 霖 霜 霞 霧 露 霸 霹). Narrow 雨 in 镭 hangs the dots as tabs on the side posts.
+- 頁 right (JA): bar y 0.045 x 0.36-0.68, stub x 0.52, loop x 0.41-0.635 y 0.2-0.74, rungs 0.335 / 0.47 / 0.605, foot slabs (0.46,0.8)-(0.42,0.95) and mirror (頰 頻 額 顎 願 類 顧). 页 right (GB): the w 0.09 standard with feet run to 0.94 (颠 颤 颧).
+- 革 left: bar 0.1, 廿 posts x 0.07 / 0.24 to a bar at 0.26, 口 loop x 0.04-0.27 y 0.38-0.58 on a stem x 0.155, long bar 0.74 (鞘 鞠 鞭; 霸 squeezes it to y 0.38-1).
+- 馬 (JA): post, center stem, four bar levels over the top 62%, the last one bending into the hook post, four square dots below; scaled into the region (騎 left, 騰 and 驚 bottom).
+- 隹: ノ strip into the post, stem from the top as the dot, three bars right of the stem, base bar from the post (雕 離; wide under 雨 in 霍; narrow in 顧 颧).
+- 麻: 广 frame (dot x 0.40, bar 0.09, post 0.06) with two small 木 at y 0.15-0.46 (靡 魔). 鬼: tick, 田 box across the width, left leg, 乚, ム right of the 乚 (魏 魔).
+- 京 right: dot, bar 0.1, 口 loop y 0.22-0.44, hook stem, two square side dots (鯨 鲸). 魚 left copies 鮮; 鱼 left is the same with one base bar at 0.8.
+- 口 too small for strip walls becomes a block with a square counter (吅 in 顎 颧, inner 口 of 亶 in 颤).
+
+### Complex characters (w 0.07–0.09): C3
+- w 0.07 for the whole group. Pitch between parallel centerlines 0.105 (white 0.035). Edge centers 0.035 / 0.645. Frame cut on all.
+- 犭: slab (0,0.02)-(0.15,0.17), post x 0.14 with foot left to 0.02 at 0.965, slab (0.14,0.40)-(0,0.68). Right part from 0.21 (獭 獲).
+- 王 left: bars 0.12 / 0.45 / 0.80 x 0-0.2, stem x 0.10. Right part from 0.24 (環). 玉 below: bars 0.595 / 0.76 / 0.965, stem x 0.34, square dot x 0.44-0.50 y 0.835-0.885; upper part ends by 0.525 (璧 璽).
+- 疒: dot post x 0.40 y 0-0.10, `[[0.68,0.10],[0.12,0.10],[0.12,0.965],[0,0.965]]`, tabs x 0-0.09 at y 0.22-0.32 / 0.44-0.56. Inside part x 0.19-0.68, y 0.17-1 (瘴 瘸 療 癌 癒 癖 癣). 广 is the same without tabs (磨 糜, 麻 = two 木 at y 0.17-0.52).
+- 目 left: loop ink x 0-0.2, y 0.14-0.86, two bars at thirds, square counters. Right part from 0.235 (瞧 瞩 瞪 瞬 瞭 瞳 瞻).
+- 石 left: bar y 0.035 x 0-0.25, ノ slab (0.13,0.05)-(0.035,0.42), 口 loop ink x 0.035-0.245 y 0.48-0.90. Right part from 0.28 (磷 磺 礁 礎).
+- 禾 left: bars 0.035 / 0.22 x 0-0.25, stem x 0.125, leg triangles on the stem edges to x 0 (y 0.93) and x 0.25 (y 0.80). Right part from 0.285 (穆 積 穗 穫).
+- 米 left: stem x 0.12, bar y 0.42 x 0-0.24, dot blocks x 0-0.05 / 0.19-0.24 y 0.12-0.30, leg slabs (0.10,0.46)-(0.01,0.80) and (0.14,0.46)-(0.23,0.76). Right part from 0.275 (糕 糖 糙 糟 糠 糧 糯).
+- 糸 left (JA): zigzags `[[0.15,0],[0.035,0.19],[0.17,0.19]]`, `[[0.24,0.08],[0.035,0.43],[0.27,0.43]]`, tick x 0.235 y 0.31-0.43, stem x 0.145 from 0.43, dot posts x 0.035 / 0.255 y 0.6-0.87. Right part from 0.32 (緻 縛 縫 縮). 糸 below: zigzags from y0, stem x 0.34, two slabs (繁 y0 0.58, 纂 y0 0.64 at 0.86 height).
+- Shared parts: 焦 (瞧 礁), 蒦 (獲 穫), 尞 (療 瞭), 辟 (璧 wide, 癖 narrow), 瓜 at x 0.40-0.68 (瓢 瓤; narrow in 瓣), 麻 (磨 糜), 广+肀 (糖 糠), 立兄 (競).
+- Where open counters do not fit the part is a block with 0.025 slits: 束's 口 in 獭, 目 in 纂 and in each 直 of 矗. 爾's four X are slabs clipped flush to their cells.
+
+### Complex characters (w 0.07–0.09): C7
+- w 0.07 for the whole group (龙 is 5 strokes and keeps 0.11). Frame cut on all. Copy centerlines from the glyph named in brackets.
+- Reused from other groups unchanged: 金 left from C5 (錬 鎌), 言 left from C5 (謡 譲), JA 頁 right from C6 (頼 顔 顕 瀬). Left parts next to 頁 end their ink by x 0.345.
+- 門 (闇 闘): doors `[[0.035,1],[0.035,0.035],[0.245,0.035],[0.245,0.28],[0.035,0.28]]` and mirror at 0.435 / 0.645 with a foot left to 0.56, rungs y 0.1675. Inner part ink x 0.07-0.61, y 0.3-0.95.
+- 鳥 right (鶴 鶏, x 0.40-0.645): tick, 目 loop with rows at 0.09 / 0.25 / 0.41 / 0.57 of the height, the bottom row bar runs into the hook post with a foot left, 灬 as a block with three 0.02 slits. Under 广 (鷹): loop rows 0.55 / 0.64 / 0.73, long bar 0.82 into the hook, 灬 as four squares on the hook's foot level. 鸟 under 广 (鹰): tick, 𠃍 y 0.555, square dot, ㇉ bar 0.74, low bar 0.855.
+- 亻隹 under 广 (鷹 鹰): 亻 post x 0.15, 隹 post 0.27, stem 0.41, bars 0.17 / 0.265 / 0.36, base 0.455 (white 0.025, the tightest in the group).
+- 馬 left (騒 験): post x 0.04, stem 0.165, bars 0.035 / 0.19 / 0.345, ㇉ bar 0.52 into post 0.30 with a foot, 灬 block x 0-0.23 y 0.66-0.84 with three slits.
+- 襄 JA (譲 壌 嬢 醸) and 褱 JA (壊 懐) share 𧘇: レ post with an up-tick, a short ノ, a long ㇏ off the lower right. 襄: dot, bar 0.1, 丷 ticks, bars 0.22 / 0.36 / 0.5, two posts 0.1 apart. 褱: 十, 罒 (three cells), long bar 0.45.
+- 黑 left (黔 默): loop x 0.035-0.325 y 0.035-0.29 with two 0.05 dots, stem from the loop floor, bar 0.43, rising bar, 灬 as four squares. 鹿 (麓 麗): 广 bar, ∩ with stem and bar, 比 as two 匕. 粦 (鳞 隣): 米, 夕 (dot as a square right of the slant), 㐄 (bar, L, long post). 鱼 GB left (鳃 鳞), bottom (鳖).
+- Where strips do not fit: 臣 in 臓 and 束's 口 in 瀬 are blocks with slits; 歯's 米 hangs its dots as tabs on the bar (齢).
