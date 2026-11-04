@@ -68,6 +68,10 @@ test("grid: kana ticks turn up, い is posts, と starts with a mid bar", () => 
   assert.ok(y0 > 0.3, `と highest bar at ${y0}`);
 });
 
+test("grid: chars of 16+ strokes use the thin dense tape", () => {
+  for (const ch of ["議", "護", "鷹"]) assert.ok(gen(ch).w <= 0.08 + 1e-9, `${ch} w ${gen(ch).w}`);
+});
+
 test("grid: kana bowls are one box of long runs (ち ら), not steps", () => {
   for (const ch of ["ち", "ら"]) {
     const g = gen(ch), bowl = g.strips.reduce((b, s) => (s.length > b.length ? s : b), []);

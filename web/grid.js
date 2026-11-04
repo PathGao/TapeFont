@@ -53,7 +53,7 @@
     white: 0.3,     // least white between facing strips, in tapes
     poke: 0.4,      // least distance from the outer strip to a free tip beyond it, in tapes
     slit: 0.02,     // dense trick: white between strips becomes a hairline slit this wide
-    wDense: 0.09,   // tape for 16+ strokes
+    wDense: 0.08,   // tape for 16+ strokes (hand glyphs average 0.073 there)
     endCorner: 1,   // a stroke end that meets another stroke's end makes the other end meet it too (one rounded corner)
     wMin: 0.07,     // thinnest tape
     blockW: 0.11,   // at this tape or thinner, enclosures that cannot keep the white become blocks with slits
