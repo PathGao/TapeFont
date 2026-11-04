@@ -28,7 +28,12 @@
     serif: 0.045,   // a first leg shorter than this is an entry serif, dropped
     hook: 0.14,     // a last leg shorter than this that turns sharply is a hook tail
     bar: 0.3,       // a shallow 撇/提 shorter than this (em) becomes a flat bar
-    join: 0.1,      // a leg end this close (em) to another strip's line touches it
+    join: 0.055,    // a leg end this close (em, half a tape) to another strip's line touches it
+    joinSpan: 0.1,  // ... if it is within this of the strip's span
+    skelW: 0.025,   // holes: the skeleton drawn this wide (em) has as many holes as the char
+    skelExt: 0.03,  // ... with its stroke ends grown by this (em)
+    holeRows: 120,  // holes are counted on a grid this many rows high
+    near: 0.1,      // an end that stops short of a line this close (em) keeps G.white tapes of white to it
     tolNear: 0.03,  // overlapping bars this close (em) share one level
     tolFar: 0.07,   // bars side by side this close share one level (left radical on the right part's levels)
     equal: 0.5,     // level spacing: 0 = as in the skeleton, 1 = equally spaced
@@ -48,6 +53,8 @@
     pieX: 0,        // where that post goes: 0 = the post, 1 = the tail end
     dotMid: 0.2,    // ... and this close to the bar's middle (in bar lengths)
     dotPost: 0.25,  // a top dot this close (em) above a bar is a post down to it
+    dotLen: 0.2,    // a lone diagonal shorter than this (em) is a dot (氵 灬 点)
+    dotNear: 0.06,  // a dot whose end is this close (em) to a bar or post it points at is joined to it
     markH: 0.27,    // ゛: two posts from the top to this
     markGap: 0.035, // white between the two posts
     ringR: 0.1,     // ゜: ring radius
@@ -84,7 +91,7 @@
     const pts = rdp(raw, G.eps);
     if (len(pts) < G.dot) {
       const c = raw.reduce((s, p) => [s[0] + p[0] / raw.length, s[1] + p[1] / raw.length], [0, 0]);
-      return { dot: c };
+      return { dot: c, dir: [raw[raw.length - 1][0] - raw[0][0], raw[raw.length - 1][1] - raw[0][1]] };
     }
     let legs = [];
     for (let i = 0; i + 1 < pts.length; i++) {
@@ -185,8 +192,8 @@
   function place(cl, tips, size, w, white, isY, enc) {
     const lo = Math.min(...tips), hi = Math.max(...tips);
     const k = cl.map((c) => ({ v: c.v, level: true, c }));
-    if (!k.length || lo < k[0].v - G.join / 2) k.unshift({ v: lo, level: false });
-    if (!k.length || hi > k[k.length - 1].v + G.join / 2) k.push({ v: hi, level: false });
+    if (!k.length || lo < k[0].v - G.joinSpan / 2) k.unshift({ v: lo, level: false });
+    if (!k.length || hi > k[k.length - 1].v + G.joinSpan / 2) k.push({ v: hi, level: false });
     if (k.length === 1) { k[0].p = size / 2; return k; }
     const faces = (A, B) => A.c.items.some((p) => B.c.items.some((q) => Math.min(p.hi, q.hi) - Math.max(p.lo, q.lo) > -0.02));
     const gaps = [], min = [], ll = [];
@@ -318,11 +325,89 @@
 
   function build(ch, strokes, P) {
     const m = /[\u3040-\u30ff]/.test(ch) && marksOf(strokes);
-    if (!m) return buildBase(ch, strokes, P);
-    return addMarks(buildBase(ch, strokes.slice(0, -m.n), P), m.kind);
+    if (!m) return buildHoles(ch, strokes, P);
+    return addMarks(buildHoles(ch, strokes.slice(0, -m.n), P), m.kind);
   }
 
-  function buildBase(ch, strokes, P) {
+  // ---------- holes ----------
+
+  // Ink mask of a glyph or a skeleton on a coarse grid (rows x cols, cell x 0..a, y 0..1).
+  function raster(g, a, rows) {
+    const cols = Math.round(a * rows), m = new Uint8Array(rows * cols);
+    const fill = (inside, x0, x1, y0, y1) => {
+      for (let r = Math.max(0, Math.floor(y0 * rows)); r < Math.min(rows, Math.ceil(y1 * rows)); r++)
+        for (let c = Math.max(0, Math.floor(x0 * rows)); c < Math.min(cols, Math.ceil(x1 * rows)); c++)
+          if (!m[r * cols + c] && inside((c + 0.5) / rows, (r + 0.5) / rows)) m[r * cols + c] = 1;
+    };
+    const h = g.w / 2;
+    for (const s of g.strips) for (let i = 0; i + 1 < s.length; i++) {  // butt ends, joints filled
+      const p = s[i], q = s[i + 1], ea = i > 0 ? h : 0, eb = i + 2 < s.length ? h : 0;
+      if (Math.abs(p[1] - q[1]) < 1e-9) { const [lo, hi] = p[0] < q[0] ? [p[0] - ea, q[0] + eb] : [q[0] - eb, p[0] + ea]; fill(() => true, lo, hi, p[1] - h, p[1] + h); }
+      else { const [lo, hi] = p[1] < q[1] ? [p[1] - ea, q[1] + eb] : [q[1] - eb, p[1] + ea]; fill(() => true, p[0] - h, p[0] + h, lo, hi); }
+    }
+    for (const P of g.polys) {
+      const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
+      fill((x, y) => P.reduce((ins, p, i) => { const q = P[(i + 1) % P.length]; return (p[1] > y) !== (q[1] > y) && x < p[0] + ((y - p[1]) * (q[0] - p[0])) / (q[1] - p[1]) ? !ins : ins; }, false),
+        Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys));
+    }
+    for (const s of g.lines || []) for (let i = 0; i + 1 < s.length; i++) {  // skeleton polylines, g.w wide
+      const p = s[i], q = s[i + 1];
+      fill((x, y) => lineSegDist([x, y], p, q) < h, Math.min(p[0], q[0]) - h, Math.max(p[0], q[0]) + h, Math.min(p[1], q[1]) - h, Math.max(p[1], q[1]) + h);
+    }
+    return { m, rows, cols };
+  }
+  const lineSegDist = (p, a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1e-12)));
+    return dist(p, [a[0] + t * dx, a[1] + t * dy]);
+  };
+
+  // Enclosed white regions (4-connected, not touching the border, larger than a speck), as src/preview.py counts them.
+  function holes({ m, rows, cols }) {
+    const seen = new Uint8Array(m.length);
+    let n = 0;
+    for (let i = 0; i < m.length; i++) {
+      if (m[i] || seen[i]) continue;
+      let area = 0, edge = false;
+      const stack = [i];
+      seen[i] = 1;
+      while (stack.length) {
+        const j = stack.pop(), r = (j / cols) | 0, c = j % cols;
+        area++;
+        if (!r || !c || r === rows - 1 || c === cols - 1) edge = true;
+        for (const k of [c > 0 ? j - 1 : -1, c < cols - 1 ? j + 1 : -1, r > 0 ? j - cols : -1, r < rows - 1 ? j + cols : -1])
+          if (k >= 0 && !m[k] && !seen[k]) { seen[k] = 1; stack.push(k); }
+      }
+      if (!edge && area > 0.0008 * rows * cols) n++;
+    }
+    return n;
+  }
+
+  // The lattice closes gaps the char leaves open (an end stops on a line it only comes near). The
+  // skeleton drawn thin tells how many holes the char has; while the glyph has more, the touch whose
+  // undoing removes the most holes is undone (that end keeps G.white tapes of white to the line).
+  function buildHoles(ch, strokes, P) {
+    const grow = (p, q) => { const d = dist(p, q) || 1; return [p[0] + ((p[0] - q[0]) / d) * G.skelExt, p[1] + ((p[1] - q[1]) / d) * G.skelExt]; };
+    const lines = strokes.map((s) => s.map((p) => [p[0] / 1000, p[1] / 1000])).filter((s) => s.length > 1)  // ends grown a little: skeleton strokes stop just short of the line they meet
+      .map((s) => [grow(s[0], s[1]), ...s, grow(s[s.length - 1], s[s.length - 2])]);
+    const want = holes(raster({ w: G.skelW, strips: [], polys: [], lines }, 1, G.holeRows));
+    const count = (g) => holes(raster(g, g.aspect, G.holeRows));
+    const cut = new Set();
+    let g = buildBase(ch, strokes, P, cut), h = count(g);
+    while (h > want) {
+      let best = null;
+      for (const k of g.touched) {
+        if (cut.has(k)) continue;
+        const c2 = new Set(cut).add(k), g2 = buildBase(ch, strokes, P, c2), h2 = count(g2);
+        if (h2 < h && (!best || h2 < best.h)) best = { k, g: g2, h: h2 };
+      }
+      if (!best) break;
+      cut.add(best.k); g = best.g; h = best.h;
+    }
+    delete g.touched;
+    return g;
+  }
+
+  function buildBase(ch, strokes, P, cut) {
     const a = P.aspect;
     const kana = /[\u3040-\u30ff]/.test(ch);
     const parsed = strokes.map((s) => parse(s, kana));
@@ -332,7 +417,7 @@
     for (const s of st) {
       if (!s.pie) continue;
       const [v, d] = s.legs, top = v.a;
-      if (!bars.some((h) => Math.abs(h.a[1] - top[1]) < G.join && Math.abs(Math.min(h.a[0], h.b[0]) - top[0]) < G.join && Math.max(h.a[0], h.b[0]) > top[0] + 0.3)) continue;
+      if (!bars.some((h) => Math.abs(h.a[1] - top[1]) < G.joinSpan && Math.abs(Math.min(h.a[0], h.b[0]) - top[0]) < G.joinSpan && Math.max(h.a[0], h.b[0]) > top[0] + 0.3)) continue;
       const x = G.pieX * d.b[0] + (1 - G.pieX) * v.a[0];
       s.legs = [{ t: "V", a: [x, top[1]], b: [x, d.b[1]], mid: [] }];
       s.foot = -1;
@@ -340,40 +425,70 @@
     // the top dot over a bar or roof (宀 亠 言 立 文): the bar right under it, nothing above it
     const posts = st.flatMap((s) => s.legs).filter((l) => l.t === "V");
     const barUnder = (c) => {
-      const bar = bars.filter((l) => c[0] > Math.min(l.a[0], l.b[0]) - G.join && c[0] < Math.max(l.a[0], l.b[0]) + G.join)
+      const bar = bars.filter((l) => c[0] > Math.min(l.a[0], l.b[0]) - G.joinSpan && c[0] < Math.max(l.a[0], l.b[0]) + G.joinSpan)
         .reduce((b, l) => (!b || l.a[1] < b.a[1] ? l : b), null);
       return bar && bar.a[1] > c[1] && bar.a[1] - c[1] < G.dotPost && Math.abs(c[0] - (bar.a[0] + bar.b[0]) / 2) < G.dotMid * Math.abs(bar.b[0] - bar.a[0])
-        && !posts.some((l) => Math.abs(l.a[0] - c[0]) < G.join && Math.min(l.a[1], l.b[1]) < c[1]) ? bar : null;
+        && !posts.some((l) => Math.abs(l.a[0] - c[0]) < G.joinSpan && Math.min(l.a[1], l.b[1]) < c[1]) ? bar : null;
     };
     for (const s of kana ? [] : st) {  // a short slanted top dot (言 主) is a dot too
       const l = s.legs[0], m = [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2];
       if (s.legs.length === 1 && l.t === "D" && dist(l.a, l.b) < G.dotPost && barUnder(m)) { s.dot = m; s.legs = null; }
     }
-    st = st.filter((s) => s.legs);
+    // other dots (氵 冫 灬 and short slanted 点) are never floating squares: a bar or post along the
+    // dot's own direction, at least 2 tapes long, joined to a strip it points at within G.dotNear
+    for (const s of parsed) {
+      const D = s.legs && s.legs.length === 1 && !s.pie && dist(s.legs[0].a, s.legs[0].b) < G.dotLen ? s.legs[0] : null;
+      if (!D && !s.dir) continue;
+      const c = D ? [(D.a[0] + D.b[0]) / 2, (D.a[1] + D.b[1]) / 2] : s.dot, v = D ? [D.b[0] - D.a[0], D.b[1] - D.a[1]] : s.dir;
+      if (!kana && barUnder(c)) { s.dot = c; s.legs = null; continue; }
+      const ax = Math.abs(v[1]) > Math.abs(v[0]) ? 1 : 0, o = 1 - ax, sg = Math.sign(v[ax]) || 1, ex = Math.max(Math.abs(v[ax]) / 2, 0.02);
+      let best = null;
+      for (const l of ax ? bars : posts) {
+        const g = (l.a[ax] - c[ax]) * sg - ex;  // white from the dot's end to the strip, ahead of the dot
+        if (dist(l.a, l.b) >= G.dotLen && c[o] > Math.min(l.a[o], l.b[o]) - 0.02 && c[o] < Math.max(l.a[o], l.b[o]) + 0.02
+          && g > -ex && g < G.dotNear && (!best || g < best.g)) best = { g, l };
+      }
+      const at = (t) => { const p = c.slice(); p[ax] = t; return p; };
+      s.legs = [Object.assign(D || { mid: [] }, { t: ax ? "V" : "H", a: at(c[ax] - sg * ex), b: at(best ? best.l.a[ax] : c[ax] + sg * ex) })];  // same object: bars/posts lists stay valid
+      s.dot = null; s.isDot = true;
+    }
+    st = parsed.filter((s) => s.legs && s.legs.length);
     const dots = parsed.filter((s) => s.dot).map((s) => s.dot);
     const legs = st.flatMap((s) => s.legs);
     const hs = legs.filter((l) => l.t === "H"), vs = legs.filter((l) => l.t === "V");
     // touches: a leg end close to another strip's line stops on it
-    const touch = (pt, self, axis) => {  // axis 0: look for a column (x), 1: a level (y)
+    const touch = (pt, self, axis, r) => {  // axis 0: look for a column (x), 1: a level (y)
+      const body = pt === self.a ? self.b : self.a;
       let best = null;
       for (const l of axis ? hs : vs) {
         if (l === self) continue;
-        const v = l.a[axis], lo = Math.min(l.a[1 - axis], l.b[1 - axis]) - G.join, hi = Math.max(l.a[1 - axis], l.b[1 - axis]) + G.join;
+        const v = l.a[axis], lo = Math.min(l.a[1 - axis], l.b[1 - axis]) - G.joinSpan, hi = Math.max(l.a[1 - axis], l.b[1 - axis]) + G.joinSpan;
         const d = Math.abs(pt[axis] - v);
-        if (d < G.join && pt[1 - axis] > lo && pt[1 - axis] < hi && (!best || d < best.d)) best = { d, l };
+        // an end short of the line touches within G.join, one that ran past it (overshoot) within G.joinSpan
+        const rr = r || ((pt[axis] - v) * (body[axis] - v) < 0 ? G.joinSpan : G.join);
+        if (d < rr && pt[1 - axis] > lo && pt[1 - axis] < hi && (!best || d < best.d)) best = { d, l };
       }
       return best && best.l;
     };
-    for (const s of st) {
+    // an H/V end that stops short of a line (within G.near) keeps G.white tapes of white to it (see endPt);
+    // so does an end in `cut` (a touch that closed a hole the skeleton does not have, see build), on its body's side
+    const nearEnd = (leg, e, axis, body) => {
+      const l = touch(leg[e], leg, axis, G.near);
+      return l && { l, s: Math.sign((body ? leg[e === "a" ? "b" : "a"] : leg[e])[axis] - l.a[axis]) || 1 };
+    };
+    const touched = [];
+    st.forEach((s, si) => {
       const f = s.legs[0], l = s.legs[s.legs.length - 1];
-      const ends = [[f, "a"], [l, "b"]];
-      for (const [leg, e] of ends) {
-        const pt = leg[e];
-        if (leg.t === "H") leg[e + "x"] = touch(pt, leg, 0);
-        else if (leg.t === "V") leg[e + "y"] = touch(pt, leg, 1);
-        else { leg[e + "x"] = touch(pt, leg, 0); if (!leg[e + "x"]) leg[e + "y"] = touch(pt, leg, 1); }
+      for (const [leg, e] of [[f, "a"], [l, "b"]]) {
+        const pt = leg[e], k = si + e, no = cut && cut.has(k);
+        if (leg.t === "H") { leg[e + "x"] = !no && touch(pt, leg, 0); if (!leg[e + "x"]) leg[e + "n"] = nearEnd(leg, e, 0, no); }
+        else if (leg.t === "V") { leg[e + "y"] = !no && touch(pt, leg, 1); if (!leg[e + "y"]) leg[e + "n"] = nearEnd(leg, e, 1, no); }
+        else if (!no) { leg[e + "x"] = touch(pt, leg, 0); if (!leg[e + "x"]) leg[e + "y"] = touch(pt, leg, 1); }
+        // a touch near the other strip's end is a corner (口 金 frames): it stays closed
+        const o = leg[e + "x"] || leg[e + "y"];
+        if (o && Math.min(dist(pt, o.a), dist(pt, o.b)) > G.joinSpan) touched.push(k);
       }
-    }
+    });
     const d0 = 0.03;
     const yItems = hs.map((l) => ({ v: l.a[1], lo: Math.min(l.a[0], l.b[0]), hi: Math.max(l.a[0], l.b[0]), l }))
       .concat(dots.map((c) => ({ v: c[1], lo: c[0] - d0, hi: c[0] + d0, dot: c })));
@@ -389,12 +504,12 @@
     }
     // tape width: the widest that leaves visible white everywhere, else the thinnest with slits
     // enclosures: facing bars (posts) with posts (bars) on both sides spanning both of them
-    const spans = (l, lo, hi, ax) => Math.min(l.a[ax], l.b[ax]) <= lo + G.join && Math.max(l.a[ax], l.b[ax]) >= hi - G.join;
+    const spans = (l, lo, hi, ax) => Math.min(l.a[ax], l.b[ax]) <= lo + G.joinSpan && Math.max(l.a[ax], l.b[ax]) >= hi - G.joinSpan;
     const enclosed = (A, B, sides, ax) => A.items.some((p) => p.l && B.items.some((q) => {
       if (!q.l) return false;
       const lo = Math.max(p.lo, q.lo), hi = Math.min(p.hi, q.hi);
       if (hi - lo < 0.02) return false;
-      const wall = (side) => sides.some((s) => (side ? s.a[1 - ax] >= hi - G.join : s.a[1 - ax] <= lo + G.join) && spans(s, A.v, B.v, ax));
+      const wall = (side) => sides.some((s) => (side ? s.a[1 - ax] >= hi - G.joinSpan : s.a[1 - ax] <= lo + G.joinSpan) && spans(s, A.v, B.v, ax));
       return wall(0) && wall(1);
     }));
     const encY = (A, B) => enclosed(A, B, vs, 1), encX = (A, B) => enclosed(A, B, hs, 0);
@@ -416,9 +531,10 @@
     const lvY = (l) => pos(lvOf.get(l), ky), colX = (l) => pos(colOf.get(l), kx);
     // end points in the cell
     const endPt = (l, e) => {
-      const p = l[e];
-      if (l.t === "H") return [l[e + "x"] ? colX(l[e + "x"]) : wx(p[0]), lvY(l)];
-      if (l.t === "V") return [colX(l), l[e + "y"] ? lvY(l[e + "y"]) : wy(p[1])];
+      const p = l[e], n = l[e + "n"];
+      const keep = (v, X, hi) => (n && (v - X) * n.s < w / 2 + G.white * w ? Math.min(Math.max(X + n.s * (w / 2 + G.white * w), 0), hi) : v);
+      if (l.t === "H") return [l[e + "x"] ? colX(l[e + "x"]) : n ? keep(wx(p[0]), colX(n.l), a) : wx(p[0]), lvY(l)];
+      if (l.t === "V") return [colX(l), l[e + "y"] ? lvY(l[e + "y"]) : n ? keep(wy(p[1]), lvY(n.l), 1) : wy(p[1])];
       return [l[e + "x"] ? colX(l[e + "x"]) : wx(p[0]), l[e + "y"] ? lvY(l[e + "y"]) : wy(p[1])];
     };
     const corner = (A, B) => {  // shared point of consecutive legs A -> B
@@ -452,6 +568,12 @@
         const nx = i + 1 < L.length ? corner(l, L[i + 1]) : [endPt(l, "b")];
         nx.forEach((p, j) => { pts.push(p); segs.push(j ? { t: L[i + 1].t === "H" ? "V" : "H" } : l); });
       });
+      if (s.isDot && dist(pts[0], pts[1]) < 2 * w) {  // a dot is at least 2 tapes long, grown at its free ends
+        const l = L[0], ax = l.t === "H" ? 0 : 1, ta = l[ax ? "ay" : "ax"], tb = l[ax ? "by" : "bx"];
+        const sg = Math.sign(pts[1][ax] - pts[0][ax]) || 1, need = 2 * w - Math.abs(pts[1][ax] - pts[0][ax]), hi = ax ? 1 : a;
+        const [ga, gb] = ta && tb ? [0, 0] : ta ? [0, need] : tb ? [need, 0] : [need / 2, need / 2];
+        pts[0][ax] = Math.min(Math.max(pts[0][ax] - sg * ga, 0), hi); pts[1][ax] = Math.min(Math.max(pts[1][ax] + sg * gb, 0), hi);
+      }
       if (s.foot && L[L.length - 1].t === "V") {
         const e = pts[pts.length - 1];
         pts.push([Math.max(e[0] - G.foot, 0), e[1]]); segs.push({ t: "H" });
@@ -480,7 +602,7 @@
       }
       polys.push([[cx - h, cy - h], [cx + h, cy - h], [cx + h, cy + h], [cx - h, cy + h]]);
     }
-    return { ch, aspect: a, w, strips: mergeCorners(strips, w, a), polys, cuts: [], sharp, hand: false };
+    return { ch, aspect: a, w, strips: mergeCorners(strips, w, a), polys, cuts: [], sharp, hand: false, touched };
   }
 
   // Strips whose ends meet at one point (an L corner of two strokes) become one strip, so the
