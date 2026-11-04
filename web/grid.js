@@ -87,7 +87,7 @@
     ringHole: 0.035,
     markSqueeze: 0.8, // least sideways squeeze of the base to fit the marks right of its posts
     radicals: 1,    // a known left radical is taken from a hand glyph (RAD), the rest is built in the cell right of it
-    radMatch: 0.07, // ... its strokes match the donor's first strokes this close (mean point distance, radical box = 1)
+    radMatch: 0.062, // ... its strokes match the donor's first strokes this close (mean point distance, radical box = 1)
     radSize: 0.3,   // ... and its box is within this share of the donor's in width and height
   };
 
@@ -953,13 +953,14 @@
   function radicalsFor(data) {
     if (radCache.has(data)) return radCache.get(data);
     const list = RAD.flatMap((R) => {
-      const e = data.hand[R.donor], sk = data.ja[R.donor] || data.zh[R.donor];
-      if (!e || !sk || sk.length <= R.k) return [];
+      // both skeleton sets: their strokes differ in shape, a char is matched against the donor in either
+      const e = data.hand[R.donor], sks = [data.ja[R.donor], data.zh[R.donor]].filter((sk) => sk && sk.length > R.k);
+      if (!e || !sks.length) return [];
       const w = e.w || 0.11, left = (P) => Math.max(...P.map((p) => p[0])) <= R.x + 1e-6;
       const pick = (k) => (e[k] || []).filter(left);
       const rest = [...(e.strips || []).filter((s) => !left(s)).flatMap((s) => s.map((p) => p[0] - w / 2)),
         ...(e.polys || []).filter((s) => !left(s)).flatMap((s) => s.map((p) => p[0]))];
-      return [{ ...R, ref: shape(sk.slice(0, R.k)), xs: Math.max(R.x, Math.min(...rest)), w,
+      return [{ ...R, refs: sks.map((sk) => shape(sk.slice(0, R.k))), xs: Math.max(R.x, Math.min(...rest)), w,
         t: { strips: pick("strips"), polys: pick("polys"), cuts: (e.cuts || []).filter((c) => left(c) || Math.min(...c.map((p) => p[0])) < 0),
           sharp: (e.sharp || []).filter((p) => p[0] <= R.x) } }];
     });
@@ -971,11 +972,13 @@
     let best = null;
     for (const R of radicalsFor(data)) {
       if (strokes.length <= R.k) continue;
-      const a = shape(strokes.slice(0, R.k)), b = shape(strokes.slice(R.k)), ref = R.ref;
+      const a = shape(strokes.slice(0, R.k)), b = shape(strokes.slice(R.k));
       if (a.x1 > 0.55 || b.cx < a.cx + 0.1) continue;  // on the left, the rest to its right
-      if (Math.abs(a.W / ref.W - 1) > G.radSize || Math.abs(a.H / ref.H - 1) > G.radSize) continue;
-      const d = a.pts.reduce((s, p, i) => s + dist(p, ref.pts[i]), 0) / a.pts.length;
-      if (d < G.radMatch && (!best || R.k > best.k || (R.k === best.k && d < best.d))) best = { ...R, d };
+      for (const ref of R.refs) {
+        if (Math.abs(a.W / ref.W - 1) > G.radSize || Math.abs(a.H / ref.H - 1) > G.radSize) continue;
+        const d = a.pts.reduce((s, p, i) => s + dist(p, ref.pts[i]), 0) / a.pts.length;
+        if (d < G.radMatch && (!best || R.k > best.k || (R.k === best.k && d < best.d))) best = { ...R, d };
+      }
     }
     return best;
   }

@@ -244,7 +244,11 @@ test("grid: a known left radical comes from its donor hand glyph, look-alikes do
   const Gr = require("../web/grid.js");
   const r = (ch) => (Gr.radicalOf(E.skeletonOf(ch, "ja", DATA), DATA) || {}).name;
   for (const [ch, name] of [["港", "氵"], ["読", "言"], ["铁", "钅"], ["較", "車"], ["説", "言"]]) assert.equal(r(ch), name, ch);
-  for (const ch of "帆刽祠吃朝") assert.equal(r(ch), undefined, ch);  // 巾 is not 忄, 礻 is not 方, right-side 月 is not a left radical
+  for (const ch of "帆刽祠吃朝") assert.equal(r(ch), undefined, ch);
+  // lines without kana use the Chinese skeletons; their strokes differ, the radicals still match
+  const rz = (ch) => (Gr.radicalOf(DATA.zh[ch], DATA) || {}).name;
+  for (const [ch, name] of [["紳", "糸"], ["詠", "言"], ["語", "言"], ["澄", "氵"]]) assert.equal(rz(ch), name, ch);
+  for (const ch of "帆帐帽幅帕幔") assert.equal(rz(ch), undefined, ch);  // 巾 is not 忄, 礻 is not 方, right-side 月 is not a left radical
   const g = E.generate("港", E.skeletonOf("港", "ja", DATA), "grid", DATA);
   assert.equal(g.radical, "氵");
   for (const s of DATA.hand["洋"].strips.filter((s) => Math.max(...s.map((p) => p[0])) <= 0.228)) assert.ok(g.strips.some((t) => JSON.stringify(t) === JSON.stringify(s)));
