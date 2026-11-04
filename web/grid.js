@@ -46,6 +46,8 @@
     kanaTick: 0.25, // kana: a lone diagonal shorter than this (em) is a tick, built as a short bar or post
     pieTail: 0.15,  // 撇 tail longer than this after a post: the stroke becomes one post with a foot
     pieX: 0,        // where that post goes: 0 = the post, 1 = the tail end
+    dotMid: 0.2,    // ... and this close to the bar's middle (in bar lengths)
+    dotPost: 0.25,  // a top dot this close (em) above a bar is a post down to it
     markH: 0.27,    // ゛: two posts from the top to this
     markGap: 0.035, // white between the two posts
     ringR: 0.1,     // ゜: ring radius
@@ -324,8 +326,7 @@
     const a = P.aspect;
     const kana = /[\u3040-\u30ff]/.test(ch);
     const parsed = strokes.map((s) => parse(s, kana));
-    const dots = parsed.filter((s) => s.dot).map((s) => s.dot);
-    const st = parsed.filter((s) => s.legs && s.legs.length);
+    let st = parsed.filter((s) => s.legs && s.legs.length);
     // 广 厂: a 撇 hanging from the left end of a bar is a post down to the tail's end with a left foot
     const bars = st.flatMap((s) => s.legs).filter((l) => l.t === "H");
     for (const s of st) {
@@ -336,6 +337,20 @@
       s.legs = [{ t: "V", a: [x, top[1]], b: [x, d.b[1]], mid: [] }];
       s.foot = -1;
     }
+    // the top dot over a bar or roof (宀 亠 言 立 文): the bar right under it, nothing above it
+    const posts = st.flatMap((s) => s.legs).filter((l) => l.t === "V");
+    const barUnder = (c) => {
+      const bar = bars.filter((l) => c[0] > Math.min(l.a[0], l.b[0]) - G.join && c[0] < Math.max(l.a[0], l.b[0]) + G.join)
+        .reduce((b, l) => (!b || l.a[1] < b.a[1] ? l : b), null);
+      return bar && bar.a[1] > c[1] && bar.a[1] - c[1] < G.dotPost && Math.abs(c[0] - (bar.a[0] + bar.b[0]) / 2) < G.dotMid * Math.abs(bar.b[0] - bar.a[0])
+        && !posts.some((l) => Math.abs(l.a[0] - c[0]) < G.join && Math.min(l.a[1], l.b[1]) < c[1]) ? bar : null;
+    };
+    for (const s of kana ? [] : st) {  // a short slanted top dot (言 主) is a dot too
+      const l = s.legs[0], m = [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2];
+      if (s.legs.length === 1 && l.t === "D" && dist(l.a, l.b) < G.dotPost && barUnder(m)) { s.dot = m; s.legs = null; }
+    }
+    st = st.filter((s) => s.legs);
+    const dots = parsed.filter((s) => s.dot).map((s) => s.dot);
     const legs = st.flatMap((s) => s.legs);
     const hs = legs.filter((l) => l.t === "H"), vs = legs.filter((l) => l.t === "V");
     // touches: a leg end close to another strip's line stops on it
@@ -457,6 +472,12 @@
     }
     for (const c of dots) {
       const cx = colOf.has(c) ? pos(colOf.get(c), kx) : wx(c[0]), cy = levels.length && lvOf.has(c) ? pos(lvOf.get(c), ky) : wy(c[1]), h = w / 2;
+      // the top dot is a short post down to its bar
+      const bar = !kana && barUnder(c);
+      if (bar) {
+        strips.push([[cx, cy - h < G.dotPost / 2 ? 0 : cy - h], [cx, lvY(bar)]]);
+        continue;
+      }
       polys.push([[cx - h, cy - h], [cx + h, cy - h], [cx + h, cy + h], [cx - h, cy + h]]);
     }
     // ponytail: rare extrapolated tips (11 of 11190 chars) can leave the cell; clamp instead of solving them

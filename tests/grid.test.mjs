@@ -97,6 +97,16 @@ test("grid: bars inside an enclosure close to hairline slits only when the white
   assert.ok(new Set(ys.map((y) => y.toFixed(3))).size >= 3 && g.w === E.P.w);
 });
 
+test("grid: the top dot of 言 主 計 is a post from the top edge, side dots stay squares", () => {
+  for (const ch of ["言", "主", "計"]) {
+    const g = gen(ch);
+    assert.ok(!g.polys.some((p) => Math.min(...p.map((q) => q[1])) < 0.15), `${ch} has a block at the top`);
+    const ends = g.strips.flatMap((s) => [[s[0], s[1]], [s[s.length - 1], s[s.length - 2]]]);
+    assert.ok(ends.some(([p, q]) => p[1] === 0 && Math.abs(p[0] - q[0]) < 1e-6), `${ch} top post`);
+  }
+  assert.ok(gen("冰").polys.length >= 2, "冫 dots stay blocks");
+});
+
 test("grid: kana marks keep the base and sit in the top-right corner", () => {
   const a = E.P.aspect;
   for (const [ch, base, n] of [["ど", "と", 2], ["ブ", "フ", 2], ["ぷ", "ふ", 1]]) {
