@@ -13,7 +13,8 @@ skeleton (ja first, then zh) by each generator (web/cli.js --glyphs) and compare
   thin   share of glyphs whose thinnest enclosed white is under 0.02 (blobs, hairlines)
 A fixed random 20% of the chars is the held-out test set (seed below); tune on --split tune only.
 Per-char rows go to build/grid_eval_<split>.tsv. --sheet writes build/grid_compare.png
-(hand | trace | grid for ~60 chars: tune, held-out, and chars without a hand glyph).
+(hand | gens for ~80 chars: the SHOW chars, tune, held-out, and chars without a hand glyph; use
+--gens prev,grid --prev DIR for hand | previous | new).
 """
 import json, random, statistics, subprocess, sys, tempfile
 from pathlib import Path
@@ -29,6 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 H = preview.H
 SEED = 20261104
 NO_HAND = "鷹語論識議護響驚灣聽歡麗織職鬱讓龍纏驗戀釁永必書飛乘為"
+SHOW = "がどぶブぷパゴジいルと広府原座病方言計主賀里曜題贈錯"
 
 
 def hand_glyphs():
@@ -107,7 +109,8 @@ FONT = ImageFont.truetype("/System/Library/Fonts/Hiragino Sans GB.ttc", 16)
 
 def sheet(hand, tune, test, gens, out, picks=None):
     rng = random.Random(1)
-    picks = picks or rng.sample(tune, 24) + rng.sample(test, 24) + [c for c in NO_HAND if c not in hand][:16]
+    show = [c for c in SHOW if c in hand]  # known failure patterns: kana marks, 广 厂, top dots, dense blocks
+    picks = picks or show + rng.sample([c for c in tune if c not in show], 16) + rng.sample([c for c in test if c not in show], 16) + [c for c in NO_HAND if c not in hand][:12]
     gl = {gen: generate(picks, gen) for gen in gens}
     W = int(0.68 * H)
     cols, cw = 4, (len(gens) + 1) * (W + 4) + 16
