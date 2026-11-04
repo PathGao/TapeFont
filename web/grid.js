@@ -86,6 +86,9 @@
     ringR: 0.1,     // ゜: ring radius
     ringHole: 0.035,
     markSqueeze: 0.8, // least sideways squeeze of the base to fit the marks right of its posts
+    radicals: 1,    // a known left radical is taken from a hand glyph (RAD), the rest is built in the cell right of it
+    radMatch: 0.07, // ... its strokes match the donor's first strokes this close (mean point distance, radical box = 1)
+    radSize: 0.3,   // ... and its box is within this share of the donor's in width and height
   };
 
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -408,7 +411,9 @@
     return g;
   }
 
-  function build(ch, strokes, P) {
+  function build(ch, strokes, P, data) {
+    const r = data && G.radicals && !/[\u3040-\u30ff]/.test(ch) && radicalOf(strokes, data);
+    if (r) return withRadical(ch, strokes, P, r);
     const m = /[\u3040-\u30ff]/.test(ch) && marksOf(strokes);
     if (!m) return buildHoles(ch, strokes, P);
     return addMarks(buildHoles(ch, strokes.slice(0, -m.n), P), m.kind);
@@ -913,7 +918,78 @@
     });
   }
 
-  const api = { G, build, parse, marksOf, place, holes: (g) => holes(raster(g, g.aspect, G.holeRows)) };
+
+  // ---------- left radicals ----------
+
+  // Sato builds a radical the same way in every char (docs/radicals.md). A char whose first k
+  // strokes match the first k strokes of a donor (a hand glyph in the tuning split) gets the donor's
+  // radical as it is: the hand glyph's pieces left of `x` (its white column). The rest of the char
+  // is built by the lattice in the cell right of where the donor's own right part starts.
+  // radical:donor:k:x
+  const RAD = ("金:銀:8:0.328 钅:钢:5:0.3 氵:注:3:0.22 亻:住:2:0.225 扌:技:3:0.258 木:村:4:0.372 糸:結:6:0.36 " +
+    "纟:给:3:0.298 言:話:7:0.355 讠:话:2:0.318 禾:私:5:0.308 忄:性:3:0.342 足:路:7:0.328 車:転:7:0.368 车:转:4:0.362 " +
+    "馬:駅:10:0.385 阝:防:3:0.308 月:服:4:0.298 女:好:3:0.332 王:球:4:0.312 石:研:5:0.35 目:眼:5:0.338 " +
+    "貝:購:7:0.3 彳:待:3:0.268 衤:被:5:0.315 方:旅:4:0.308 弓:強:3:0.318 米:料:6:0.292 舟:船:6:0.328 歹:残:4:0.358")
+    .split(" ").map((t) => { const [name, donor, k, x] = t.split(":"); return { name, donor, k: +k, x: +x }; });
+
+  // k strokes -> points resampled along each stroke, in the group's box scaled to 1 (keeps its shape)
+  function shape(strokes) {
+    const pts = strokes.flat(), xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys), W = Math.max(...xs) - x0, H = Math.max(...ys) - y0, s = Math.max(W, H) || 1;
+    const out = strokes.flatMap((st) => {
+      const L = len(st), n = 6, r = [];
+      for (let i = 0; i < n; i++) {
+        let t = (L * i) / (n - 1), j = 0;
+        while (j + 2 < st.length && t > dist(st[j], st[j + 1])) { t -= dist(st[j], st[j + 1]); j++; }
+        const a = st[j], b = st[j + 1] || a, d = dist(a, b) || 1, u = Math.min(t / d, 1);
+        r.push([(a[0] + (b[0] - a[0]) * u - x0) / s, (a[1] + (b[1] - a[1]) * u - y0) / s]);
+      }
+      return r;
+    });
+    return { pts: out, W: W / 1000, H: H / 1000, x1: (x0 + W) / 1000, cx: (x0 + W / 2) / 1000 };
+  }
+
+  const radCache = new WeakMap();
+  function radicalsFor(data) {
+    if (radCache.has(data)) return radCache.get(data);
+    const list = RAD.flatMap((R) => {
+      const e = data.hand[R.donor], sk = data.ja[R.donor] || data.zh[R.donor];
+      if (!e || !sk || sk.length <= R.k) return [];
+      const w = e.w || 0.11, left = (P) => Math.max(...P.map((p) => p[0])) <= R.x + 1e-6;
+      const pick = (k) => (e[k] || []).filter(left);
+      const rest = [...(e.strips || []).filter((s) => !left(s)).flatMap((s) => s.map((p) => p[0] - w / 2)),
+        ...(e.polys || []).filter((s) => !left(s)).flatMap((s) => s.map((p) => p[0]))];
+      return [{ ...R, ref: shape(sk.slice(0, R.k)), xs: Math.max(R.x, Math.min(...rest)), w,
+        t: { strips: pick("strips"), polys: pick("polys"), cuts: (e.cuts || []).filter((c) => left(c) || Math.min(...c.map((p) => p[0])) < 0),
+          sharp: (e.sharp || []).filter((p) => p[0] <= R.x) } }];
+    });
+    radCache.set(data, list);
+    return list;
+  }
+
+  function radicalOf(strokes, data) {
+    let best = null;
+    for (const R of radicalsFor(data)) {
+      if (strokes.length <= R.k) continue;
+      const a = shape(strokes.slice(0, R.k)), b = shape(strokes.slice(R.k)), ref = R.ref;
+      if (a.x1 > 0.55 || b.cx < a.cx + 0.1) continue;  // on the left, the rest to its right
+      if (Math.abs(a.W / ref.W - 1) > G.radSize || Math.abs(a.H / ref.H - 1) > G.radSize) continue;
+      const d = a.pts.reduce((s, p, i) => s + dist(p, ref.pts[i]), 0) / a.pts.length;
+      if (d < G.radMatch && (!best || R.k > best.k || (R.k === best.k && d < best.d))) best = { ...R, d };
+    }
+    return best;
+  }
+
+  function withRadical(ch, strokes, P, R) {
+    const a = P.aspect, w = strokes.length >= 16 ? Math.min(P.w, G.wDense) : P.w;
+    const g = buildHoles(ch, strokes.slice(R.k), { ...P, aspect: a - R.xs, w });
+    const mv = (s) => s.map(([x, y]) => [x + R.xs, y]);
+    return { ch, aspect: a, w: g.w, radical: R.name,
+      strips: [...R.t.strips, ...g.strips.map(mv)], polys: [...R.t.polys, ...g.polys.map(mv)],
+      cuts: [...R.t.cuts, ...(g.cuts || []).map(mv)], sharp: [...R.t.sharp, ...mv(g.sharp || [])], hand: false };
+  }
+
+  const api = { G, RAD, build, radicalOf, parse, marksOf, place, holes: (g) => holes(raster(g, g.aspect, G.holeRows)) };
   root.TapeGrid = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);

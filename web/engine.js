@@ -243,14 +243,14 @@
   }
 
   const Grid = typeof module !== "undefined" ? require("./grid.js") : root.TapeGrid;
-  function generate(ch, strokes, gen = P.generator) {
-    return gen === "grid" ? Grid.build(ch, strokes, P) : fromSkeleton(ch, strokes);
+  function generate(ch, strokes, gen = P.generator, data) {  // data: hand glyphs give known left radicals
+    return gen === "grid" ? Grid.build(ch, strokes, P, data) : fromSkeleton(ch, strokes);
   }
 
   function glyphFor(ch, lang, data) {
     if (data.hand[ch]) return fromHand(ch, data.hand[ch]);
     const sk = skeletonOf(ch, lang, data);
-    return sk ? generate(ch, sk) : null;
+    return sk ? generate(ch, sk, P.generator, data) : null;
   }
 
   // ---------- line solve ----------

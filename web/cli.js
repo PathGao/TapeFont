@@ -16,7 +16,7 @@ if (args[0] === "--glyphs") {
   for (const ch of args[1]) {
     const sk = E.skeletonOf(ch, lang === "zh" ? "zh" : "ja", D);
     if (!sk) continue;
-    const g = E.generate(ch, sk);
+    const g = E.generate(ch, sk, E.P.generator, D);
     out[ch] = { aspect: g.aspect, w: g.w, strips: g.strips, polys: g.polys, cuts: g.cuts, sharp: g.sharp, n: sk.length };
   }
   require("fs").writeFileSync(args[2], JSON.stringify(out));
