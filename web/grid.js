@@ -24,6 +24,10 @@
 (function (root) {
   const G = {
     eps: 0.03,      // RDP tolerance on the skeleton (em)
+    loopMin: 0.25,  // kana: a loop becomes a box at least this big (em); 0 = off
+    kanaJog: 0.05,  // kana: a leg shorter than this between two parallel legs is a step, dropped (em)
+    kanaBack: 1,    // kana: a straight diagonal that runs back under a bar stays a slab
+    kanaCorner: 0.2, // kana: a diagonal shorter than this between a bar and a post is a rounded corner, dropped (em)
     hv: 24,         // degrees: a leg this close to horizontal/vertical is H/V
     dot: 0.11,      // a stroke shorter than this (em) is a dot
     serif: 0.045,   // a first leg shorter than this is an entry serif, dropped
@@ -49,7 +53,7 @@
     white: 0.3,     // least white between facing strips, in tapes
     poke: 0.4,      // least distance from the outer strip to a free tip beyond it, in tapes
     slit: 0.02,     // dense trick: white between strips becomes a hairline slit this wide
-    wDense: 0.09,   // tape for 16+ strokes
+    wDense: 0.08,   // tape for 16+ strokes (hand glyphs average 0.073 there)
     endCorner: 1,   // a stroke end that meets another stroke's end makes the other end meet it too (one rounded corner)
     wMin: 0.07,     // thinnest tape
     blockW: 0.11,   // at this tape or thinner, enclosures that cannot keep the white become blocks with slits
@@ -67,7 +71,13 @@
     dotPost: 0.25,  // a top dot this close (em) above a bar is a post down to it
     dotLen: 0.2,    // a lone diagonal shorter than this (em) is a dot (氵 灬 点)
     dotNear: 0.143, // a dot whose end is this close (em, a tape and its white) to a bar or post it points at is joined to it
-    dotLeft: 0.3,   // dots left of this (em) stacked two or more (氵 冫) are bars from the edge on the right part's levels
+    dotSlant: 0.4,  // a dot whose slant is this far off H and V (sin, ~24°) is a slab along it, not a bar or post
+    dotHalf: 0.1,   // ... at least this long each side of its centre (em)
+    dotClear: 0.06, // ... and no other stroke this close to it (em)
+    pairDots: 0.25, // two short free bars stacked this close (em) are 冬's two dots
+    pairShift: 0.05, // ... moved this far apart sideways (em)
+    pairLen: 0.26,  // ... shorter than this (em)
+    dotLeft: 0.3,  // dots left of this (em) stacked two or more (氵 冫) are bars from the edge on the right part's levels
     dotSnap: 0.12,  // ... snapped to a right-part level this close (em)
     dotLow: 0.7,    // three or more dots below this (em) are 灬: one band split by slits
     dotSlit: 1,    // ... white between its pieces, in tapes
@@ -97,13 +107,44 @@
 
   // ---------- 1. parse ----------
 
+  // kana loops (す む ね る): Sato builds a loop as a box of four runs, so the first loop of a stroke
+  // (where it crosses itself) becomes its bounding box, at least G.loopMin a side, traversed the same way round
+  function boxLoop(raw) {
+    const cross = (p, q, r, s) => {
+      const d = (q[0] - p[0]) * (s[1] - r[1]) - (q[1] - p[1]) * (s[0] - r[0]);
+      if (Math.abs(d) < 1e-12) return null;
+      const t = ((r[0] - p[0]) * (s[1] - r[1]) - (r[1] - p[1]) * (s[0] - r[0])) / d, u = ((r[0] - p[0]) * (q[1] - p[1]) - (r[1] - p[1]) * (q[0] - p[0])) / d;
+      return t > 0 && t < 1 && u > 0 && u < 1 ? [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])] : null;
+    };
+    for (let i = 0; i + 1 < raw.length; i++) for (let j = i + 2; j + 1 < raw.length; j++) {
+      const X = cross(raw[i], raw[i + 1], raw[j], raw[j + 1]);
+      if (!X) continue;
+      const loop = [X, ...raw.slice(i + 1, j + 1)];
+      if (len(loop) < 3 * G.dot) return raw;  // a tiny curl, not a loop
+      let [x0, x1, y0, y1] = [Math.min(...loop.map((p) => p[0])), Math.max(...loop.map((p) => p[0])), Math.min(...loop.map((p) => p[1])), Math.max(...loop.map((p) => p[1]))];
+      const grow = (lo, hi) => { const g = Math.max(0, G.loopMin - (hi - lo)) / 2; return [lo - g, hi + g]; };
+      [x0, x1] = grow(x0, x1); [y0, y1] = grow(y0, y1);
+      const area = loop.reduce((s, p, k) => { const q = loop[(k + 1) % loop.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0);
+      // X onto the nearest side, then the corners from there the way the loop turns
+      const d = [X[0] - x0, x1 - X[0], X[1] - y0, y1 - X[1]], k = d.indexOf(Math.min(...d));
+      const Y = k === 0 ? [x0, X[1]] : k === 1 ? [x1, X[1]] : k === 2 ? [X[0], y0] : [X[0], y1];
+      const C = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];  // clockwise on screen (y down): area > 0
+      const ang = (p) => Math.atan2(p[1] - (y0 + y1) / 2, p[0] - (x0 + x1) / 2), a0 = ang(Y);
+      const step = (p) => { let a = ang(p) - a0; while (a <= 0) a += 2 * Math.PI; return area > 0 ? a : 2 * Math.PI - a; };
+      C.sort((p, q) => step(p) - step(q));
+      return [...raw.slice(0, i + 1), Y, ...C, Y, ...raw.slice(j + 1)];
+    }
+    return raw;
+  }
+
   function kind(a, b) {
     const ang = (Math.atan2(Math.abs(b[1] - a[1]), Math.abs(b[0] - a[0])) * 180) / Math.PI;
     return ang < G.hv ? "H" : ang > 90 - G.hv ? "V" : "D";
   }
 
   function parse(stroke, kana) {
-    const raw = stroke.map((p) => [p[0] / 1000, p[1] / 1000]);
+    let raw = stroke.map((p) => [p[0] / 1000, p[1] / 1000]);
+    if (kana && G.loopMin) raw = boxLoop(raw);
     const pts = rdp(raw, G.eps);
     if (len(pts) < G.dot) {
       const c = raw.reduce((s, p) => [s[0] + p[0] / raw.length, s[1] + p[1] / raw.length], [0, 0]);
@@ -161,7 +202,9 @@
         const m = l.mid.reduce((best, q) => (lineDist(q, l.a, l.b) > lineDist(best, l.a, l.b) ? q : best), l.mid[0] || null);
         const curved = m && lineDist(m, l.a, l.b) > 0.02;
         // straight 捺 (さ き) and zigzags of straight diagonals (く へ) stay slabs; a 捺 after a post is its foot (い)
-        if (!curved && ((!i && l.b[0] > l.a[0] && l.b[1] > l.a[1]) || nD > 1)) return [l];
+        // so does a straight one that runs back under a bar (ろ る そ): as an L it would fold onto the bar
+        const back = (n) => G.kanaBack && n && n.t === "H" && Math.sign(n.b[0] - n.a[0]) * Math.sign(l.b[0] - l.a[0]) < 0;
+        if (!curved && ((!i && l.b[0] > l.a[0] && l.b[1] > l.a[1]) || nD > 1 || back(legs[i - 1]) || back(legs[i + 1]))) return [l];
         const c = curved ? (dist(m, c2) < dist(m, c1) ? c2 : c1) : c1[1] >= c2[1] ? c1 : c2;
         // a stroke that starts with a curve over the top starts with a bar at mid height (と)
         if (curved && !i && legs.length > 1 && c === c2 && l.b[1] > l.a[1] + 0.1) {
@@ -174,6 +217,19 @@
         if (L && L.t === l.t && l.t !== "D") L.b = l.b; else out.push(l);
         return out;
       }, []);
+      // a diagonal between a bar and a post is the curve's rounded corner: the two meet at a bend instead (ら ち ろ bowls are a box)
+      legs = legs.filter((l, i) => !(l.t === "D" && i > 0 && i + 1 < legs.length && legs[i - 1].t !== "D" && legs[i + 1].t !== "D" && legs[i - 1].t !== legs[i + 1].t && dist(l.a, l.b) < G.kanaCorner));
+      // a short jog between two parallel legs (a step of the curve) is dropped: the two legs become one
+      // on the longer one's line, so a curve is a few long runs, never a staircase
+      for (let i = 1; i + 1 < legs.length; i++) {
+        const [A, J, B] = [legs[i - 1], legs[i], legs[i + 1]];
+        if (J.t === "D" || A.t !== B.t || A.t === J.t || A.t === "D" || dist(J.a, J.b) >= G.kanaJog) continue;
+        const ax = A.t === "H" ? 1 : 0, v = (dist(A.a, A.b) >= dist(B.a, B.b) ? A : B).a[ax];
+        const pa = A.a.slice(), pb = B.b.slice();
+        pa[ax] = v; pb[ax] = v;
+        legs.splice(i - 1, 3, { t: A.t, a: pa, b: pb, mid: [] });
+        i = 0;
+      }
     }
     // a short diagonal leg of a longer stroke is a thin blade as a slab: it becomes a bar or post, whichever is closer
     if (!kana && !pie && legs.length > 1) {
@@ -483,14 +539,55 @@
     }
     // other dots (氵 冫 灬 and short slanted 点) are never floating squares: a bar or post along the
     // dot's own direction, at least 2 tapes long, joined to a strip it points at within G.dotNear
-    for (const s of parsed) {
+    const slanted = [];
+    // 冬 寒 終: two short free bars stacked right under each other are its two 点, drawn flat in the
+    // skeleton: they slant down-right like the dots they are (made slabs below)
+    if (!kana && G.pairDots) {
+      const shortH = parsed.filter((s) => s.legs && s.legs.length === 1 && s.legs[0].t === "H" && dist(s.legs[0].a, s.legs[0].b) < G.pairLen
+        && !posts.some((l) => [s.legs[0].a, s.legs[0].b].some((p) => Math.abs(l.a[0] - p[0]) < G.joinSpan && p[1] > Math.min(l.a[1], l.b[1]) - G.joinSpan && p[1] < Math.max(l.a[1], l.b[1]) + G.joinSpan)));
+      const mid = (s) => [(s.legs[0].a[0] + s.legs[0].b[0]) / 2, s.legs[0].a[1]];
+      for (const A of shortH) for (const B of shortH) {
+        const [p, q] = [mid(A), mid(B)];
+        if (p[0] < G.dotLeft || q[1] <= p[1] || q[1] - p[1] > G.pairDots || Math.abs(q[0] - p[0]) > G.joinSpan / 2 || shortH.some((C) => C !== A && C !== B && Math.abs(mid(C)[0] - p[0]) < G.joinSpan)
+          || bars.some((l) => !shortH.some((C) => C.legs[0] === l) && l.a[1] > p[1] - G.pairDots && l.a[1] < q[1] + G.pairDots && p[0] > Math.min(l.a[0], l.b[0]) && p[0] < Math.max(l.a[0], l.b[0]))) continue;  // 言's short bars sit between long ones
+        for (const [s, sh] of [[A, G.pairShift], [B, -G.pairShift]]) {  // the upper one a little right, the lower one left: parallel, apart
+          const c = [mid(s)[0] + sh, mid(s)[1]], h = Math.max(dist(s.legs[0].a, s.legs[0].b), 0.12) / 2 / Math.SQRT2;
+          Object.assign(s.legs[0], { t: "D", a: [c[0] - h, c[1] - h], b: [c[0] + h, c[1] + h] });  // same object: bars/posts lists stay valid
+        }
+      }
+    }
+    // 氵 冫: two or more short strokes left of G.dotLeft stay bars (see leftDots below)
+    const water = parsed.filter((s) => (s.dot && s.dot[0] < G.dotLeft) || (s.legs && s.legs.length === 1 && dist(s.legs[0].a, s.legs[0].b) < G.dotLen && (s.legs[0].a[0] + s.legs[0].b[0]) / 2 < G.dotLeft)).length >= 2;
+    parsed.forEach((s, pi) => {
       const D = s.legs && s.legs.length === 1 && !s.pie && dist(s.legs[0].a, s.legs[0].b) < G.dotLen ? s.legs[0] : null;
-      if (!D && !s.dir) continue;
-      if (D && D.t !== "D") { s.short = true; s.c = [(D.a[0] + D.b[0]) / 2, (D.a[1] + D.b[1]) / 2]; continue; }  // a short bar or post (口 side, 冫 dot drawn flat) keeps its touches, only grows to 2 tapes
+      if (!D && !s.dir) return;
+      if (D && D.t !== "D") { s.short = true; s.c = [(D.a[0] + D.b[0]) / 2, (D.a[1] + D.b[1]) / 2]; return; }  // a short bar or post (口 side, 冫 dot drawn flat) keeps its touches, only grows to 2 tapes
       const c = D ? [(D.a[0] + D.b[0]) / 2, (D.a[1] + D.b[1]) / 2] : s.dot, v = D ? [D.b[0] - D.a[0], D.b[1] - D.a[1]] : s.dir;
-      if (!kana && barUnder(c)) { s.dot = c; s.legs = null; continue; }
-      if (D && !kana && c[0] < G.dotLeft && v[0] > 0 && v[1] < 0) continue;  // 氵's 提 stays a slab
+      if (!kana && barUnder(c)) { s.dot = c; s.legs = null; return; }
+      if (D && !kana && c[0] < G.dotLeft && v[0] > 0 && v[1] < 0) return;  // 氵's 提 stays a slab
       const ax = Math.abs(v[1]) > Math.abs(v[0]) ? 1 : 0, o = 1 - ax, sg = Math.sign(v[ax]) || 1, ex = Math.max(Math.abs(v[ax]) / 2, 0.02);
+      const vn = Math.hypot(...v) || 1, u = [v[0] / vn, v[1] / vn];
+      // a slanted dot (丷 of 半 关 光, 冬's dots) is a short slab along its own slant, as Sato cuts them,
+      // run on to the bar or post it points at; a slab that closes a hole the skeleton lacks is a bar or post again (buildHoles)
+      if (!kana && G.dotSlant && !(water && c[0] < G.dotLeft) && !(cut && cut.has("d" + pi)) && Math.min(Math.abs(u[0]), Math.abs(u[1])) > G.dotSlant) {
+        const half = Math.max(vn / 2, G.dotHalf);
+        let best = null;
+        for (const l of ax ? bars : posts) {
+          if (l.t !== (ax ? "H" : "V")) continue;
+          const t = (l.a[ax] - c[ax]) / u[ax], p = [c[0] + t * u[0], c[1] + t * u[1]];
+          if (t > half - G.dotNear && t < half + G.dotNear && dist(l.a, l.b) >= G.dotLen && p[o] > Math.min(l.a[o], l.b[o]) - 0.02 && p[o] < Math.max(l.a[o], l.b[o]) + 0.02 && (!best || t < best.t)) best = { t, l, p };
+        }
+        const a0 = [c[0] - u[0] * half, c[1] - u[1] * half], b0 = best ? best.p : [c[0] + u[0] * half, c[1] + u[1] * half];
+        // only where it has room: no other stroke within G.dotClear of it (雨's dots in their frame stay bars)
+        const T = dist(a0, b0) - (best ? G.dotClear : 0);
+        const clear = parsed.every((o) => o === s || !o.legs || o.legs.every((l) => l === (best && best.l) || [0, 0.25, 0.5, 0.75, 1].every((f) => lineSegDist([a0[0] + u[0] * T * f, a0[1] + u[1] * T * f], l.a, l.b) >= G.dotClear)));
+        if (clear) {
+          s.legs = [Object.assign(D || { mid: [] }, { t: "D", a: a0, b: b0 })];
+          s.dot = null; s.isDot = true; s.legs[0].isDot = true; s.c = c; s.slantTo = best && { l: best.l, ax };
+          slanted.push("d" + pi);
+          return;
+        }
+      }
       let best = null;
       for (const l of ax ? bars : posts) {
         const g = (l.a[ax] - c[ax]) * sg - ex;  // white from the dot's end to the strip, ahead of the dot
@@ -500,7 +597,7 @@
       const at = (t) => { const p = c.slice(); p[ax] = t; return p; };
       s.legs = [Object.assign(D || { mid: [] }, { t: ax ? "V" : "H", a: at(c[ax] - sg * ex), b: at(best ? best.l.a[ax] : c[ax] + sg * ex) })];  // same object: bars/posts lists stay valid
       s.dot = null; s.isDot = true; s.legs[0].isDot = true; s.c = c;
-    }
+    });
     // 氵 冫: a stack of dots left of the rest is bars on the right part's levels, from the cell edge to
     // just before the right part (drawn in the strip loop below)
     const leftDots = kana ? [] : parsed.filter((s) => s.isDot && s.c[0] < G.dotLeft).sort((p, q) => p.c[1] - q.c[1]);
@@ -541,13 +638,14 @@
       const l = touch(leg[e], leg, axis, G.near);
       return l && { l, s: Math.sign((body ? leg[e === "a" ? "b" : "a"] : leg[e])[axis] - l.a[axis]) || 1 };
     };
-    const touched = [], near = [];
+    const touched = slanted.slice(), near = [];
     st.forEach((s, si) => {
       const f = s.legs[0], l = s.legs[s.legs.length - 1];
       for (const [leg, e] of [[f, "a"], [l, "b"]]) {
         const pt = leg[e], k = si + e, no = cut && cut.has(k);  // a dot touches only the strip it was joined to
         if (leg.t === "H") { leg[e + "x"] = !no && touch(pt, leg, 0, s.isDot && 1e-6); if (!leg[e + "x"]) leg[e + "n"] = nearEnd(leg, e, 0, no || s.isDot); }
         else if (leg.t === "V") { leg[e + "y"] = !no && touch(pt, leg, 1, s.isDot && 1e-6); if (!leg[e + "y"]) leg[e + "n"] = nearEnd(leg, e, 1, no || s.isDot); }
+        else if (s.isDot) { if (!no && e === "b" && s.slantTo) leg[s.slantTo.ax ? "by" : "bx"] = s.slantTo.l; }  // a slanted dot touches only the strip it points at
         else if (!no) { leg[e + "x"] = touch(pt, leg, 0); if (!leg[e + "x"]) leg[e + "y"] = touch(pt, leg, 1); }
         // an end stopped short of a line may be joined to it (a hole the lattice left open, see buildHoles)
         if (leg[e + "n"] && !no && !s.isDot) {
@@ -672,7 +770,10 @@
         const nx = i + 1 < L.length ? corner(l, L[i + 1]) : [endPt(l, "b")];
         nx.forEach((p, j) => { pts.push(p); segs.push(j ? { t: L[i + 1].t === "H" ? "V" : "H" } : l); });
       });
-      if ((s.isDot || s.short) && dist(pts[0], pts[1]) < 2 * w) {  // a dot is at least 2 tapes long, grown at its free ends
+      if (s.isDot && L[0].t === "D") {  // a slanted dot slab: at least 2 tapes, grown at its free start
+        const d = dist(pts[0], pts[1]);
+        if (d < 2 * w && d > 1e-9) { const k = 2 * w / d; pts[0] = [pts[1][0] + (pts[0][0] - pts[1][0]) * k, pts[1][1] + (pts[0][1] - pts[1][1]) * k]; }
+      } else if ((s.isDot || s.short) && dist(pts[0], pts[1]) < 2 * w) {  // a dot is at least 2 tapes long, grown at its free ends
         const l = L[0], ax = l.t === "H" ? 0 : 1, ta = l[ax ? "ay" : "ax"], tb = l[ax ? "by" : "bx"];
         const sg = Math.sign(pts[1][ax] - pts[0][ax]) || 1, need = 2 * w - Math.abs(pts[1][ax] - pts[0][ax]), hi = ax ? 1 : a;
         const [ga, gb] = ta && tb ? [0, 0] : ta ? [0, need] : tb ? [need, 0] : [need / 2, need / 2];
@@ -697,7 +798,7 @@
           : Math.abs(q[1] - p[1]) >= Math.abs(q[0] - p[0]) ? "h" : "v");
         let cp = cut(segs[i - 1], "a"), cq = cut(segs[i + 1], "b");
         const free = (nb, e) => !nb && !l[e + "x"] && !l[e + "y"];
-        const ep = free(segs[i - 1], "a") && toEdge(p, q), eq = free(segs[i + 1], "b") && toEdge(q, p);
+        const ep = !s.isDot && free(segs[i - 1], "a") && toEdge(p, q), eq = !s.isDot && free(segs[i + 1], "b") && toEdge(q, p);
         if (ep) { p = ep.p; cp = ep.c; }
         if (eq) { q = eq.p; cq = eq.c; }
         slab(p, q, cp, cq);

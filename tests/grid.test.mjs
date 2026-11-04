@@ -68,6 +68,49 @@ test("grid: kana ticks turn up, い is posts, と starts with a mid bar", () => 
   assert.ok(y0 > 0.3, `と highest bar at ${y0}`);
 });
 
+test("grid: chars of 16+ strokes use the thin dense tape", () => {
+  for (const ch of ["議", "護", "鷹"]) assert.ok(gen(ch).w <= 0.08 + 1e-9, `${ch} w ${gen(ch).w}`);
+});
+
+test("grid: kana bowls are one box of long runs (ち ら), not steps", () => {
+  for (const ch of ["ち", "ら"]) {
+    const g = gen(ch), bowl = g.strips.reduce((b, s) => (s.length > b.length ? s : b), []);
+    assert.equal(g.polys.length, 0, `${ch} has slabs`);
+    const n = bowl.length, seg = (i) => [bowl[i], bowl[i + 1]];
+    const [h1, v, h2] = [seg(n - 4), seg(n - 3), seg(n - 2)];
+    assert.ok(Math.abs(h1[0][1] - h1[1][1]) < 1e-9 && h1[1][0] > h1[0][0], `${ch} bowl top ${JSON.stringify(bowl)}`);
+    assert.ok(Math.abs(v[0][0] - v[1][0]) < 1e-9 && v[1][1] - v[0][1] > 0.2, `${ch} bowl side ${JSON.stringify(bowl)}`);
+    assert.ok(Math.abs(h2[0][1] - h2[1][1]) < 1e-9 && h2[1][0] < h2[0][0], `${ch} bowl bottom ${JSON.stringify(bowl)}`);
+  }
+});
+
+test("grid: kana loops are boxes (お ね よ は)", () => {
+  const Gr = require("../web/grid.js");
+  // four runs turning the same way round, each at least 2 tapes: a box
+  const box = (s, w) => s.some((p, i) => {
+    const q = s.slice(i, i + 5);
+    if (q.length < 5 || q.slice(1).some((r, k) => Math.hypot(r[0] - q[k][0], r[1] - q[k][1]) < 2 * w)) return false;
+    const turn = [1, 2, 3].map((k) => Math.sign((q[k][0] - q[k - 1][0]) * (q[k + 1][1] - q[k][1]) - (q[k][1] - q[k - 1][1]) * (q[k + 1][0] - q[k][0])));
+    return turn[0] !== 0 && turn.every((t) => t === turn[0]);
+  });
+  for (const ch of ["お", "ね", "よ", "は"]) {
+    const g = gen(ch);
+    assert.ok(g.strips.some((s) => box(s, g.w)), `${ch} has no box ${JSON.stringify(g.strips)}`);
+  }
+  const L = Gr.G.loopMin;
+  Gr.G.loopMin = 0;
+  const off = gen("は");
+  Gr.G.loopMin = L;
+  assert.ok(!off.strips.some((s) => box(s, off.w)), "は box without the loop rule");
+});
+
+test("grid: ろ's diagonal back under its top bar stays a slab", () => {
+  const g = gen("ろ");
+  assert.equal(g.polys.length, 1, JSON.stringify(g));
+  const P = g.polys[0], xs = P.map((p) => p[0]);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > 2 * g.w, "slab is slanted");
+});
+
 test("grid: 广/厂 撇 is a post under the left end of the top bar", () => {
   for (const ch of ["広", "原", "府"]) {
     const g = gen(ch);
@@ -127,6 +170,24 @@ test("grid: dots are bars or posts at least 2 tapes long, never squares (氵 灬
     assert.equal(bars.length, 2, `${ch} ${JSON.stringify(g.strips)}`);
     for (const b of bars) assert.ok(g.strips.some((s) => s !== b && s.some((p) => Math.abs(p[1] - b[0][1]) < 1e-9 && p[0] > b[1][0])), `${ch} bar at ${b[0][1]} not on a right-part level`);
   }
+});
+
+test("grid: slanted dots with room are slabs along their slant (丷 of 半 关 光), framed ones stay bars (雨)", () => {
+  const slanted = (P) => { const [p, q] = [P[0], P[1]]; return Math.abs(q[0] - p[0]) > 1e-6 && Math.abs(q[1] - p[1]) > 1e-6; };
+  for (const ch of ["半", "关", "光"]) {
+    const g = gen(ch), top = g.polys.filter((P) => slanted(P) && P.every((p) => p[1] < 0.45));
+    assert.ok(top.length >= 2, `${ch} top dots not slabs ${JSON.stringify(g.polys)}`);
+  }
+  assert.ok(!gen("霊").polys.some((P) => slanted(P) && P.every((p) => p[1] < 0.4)), "雨 dots became slabs");
+});
+
+test("grid: 冬's two dots are parallel down-right slabs, apart; 言's short bars stay bars", () => {
+  const g = gen("冬"), low = g.polys.filter((P) => P.every((p) => p[1] > 0.45));
+  assert.equal(low.length, 2, JSON.stringify(g.polys));
+  for (const P of low) assert.ok(P[1][0] > P[0][0] && P[1][1] > P[0][1], `not down-right ${JSON.stringify(P)}`);
+  const [A, B] = low.sort((p, q) => p[0][1] - q[0][1]);
+  assert.ok(Math.min(...B.map((p) => p[1])) >= Math.max(...A.map((p) => p[1])) - 1e-9 || Math.max(...B.map((p) => p[0])) < Math.max(...A.map((p) => p[0])), "dots overlap");
+  assert.equal(gen("言").polys.length, 0, "言 got slabs");
 });
 
 test("grid: slab tips are blunt, 撇/捺 of 木 end in the bottom corners", () => {
