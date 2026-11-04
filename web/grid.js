@@ -40,6 +40,8 @@
     foot: 0.17,
     kanaD: 0.15,    // kana: a diagonal longer than this (em) becomes an H/V run     // length of a foot that replaces a hook (cell units)
     kanaTick: 0.25, // kana: a lone diagonal shorter than this (em) is a tick, built as a short bar or post
+    pieTail: 0.15,  // 撇 tail longer than this after a post: the stroke becomes one post with a foot
+    pieX: 0,        // where that post goes: 0 = the post, 1 = the tail end
     markH: 0.27,    // ゛: two posts from the top to this
     markGap: 0.035, // white between the two posts
     ringR: 0.1,     // ゜: ring radius
@@ -98,6 +100,12 @@
     }
     // a short D between two H/V legs is a rounded corner of the skeleton
     legs = legs.filter((l, i) => !(l.t === "D" && i > 0 && i < legs.length - 1 && dist(l.a, l.b) < 0.08));
+    // 广 厂 方: a 撇 that starts as a post is a candidate for one post with a left foot (see build)
+    let pie = false;
+    if (!kana && legs.length === 2 && legs[0].t === "V" && legs[1].t === "D") {
+      const [v, d] = legs;
+      pie = d.b[0] < d.a[0] - 0.05 && d.b[1] > d.a[1] && v.b[1] > v.a[1] && dist(d.a, d.b) > G.pieTail;
+    }
     // short shallow 撇/提 alone: a flat bar (禾 手 top)
     if (legs.length === 1 && legs[0].t === "D") {
       const l = legs[0], dx = Math.abs(l.b[0] - l.a[0]), dy = Math.abs(l.b[1] - l.a[1]);
@@ -139,7 +147,7 @@
       if (l.t === "H") { const y = (l.a[1] + l.b[1]) / 2; l.a = [l.a[0], y]; l.b = [l.b[0], y]; }
       if (l.t === "V") { const x = (l.a[0] + l.b[0]) / 2; l.a = [x, l.a[1]]; l.b = [x, l.b[1]]; }
     }
-    return { legs, foot };
+    return { legs, foot, pie };
   }
 
   // ---------- 2. lattice ----------
@@ -306,6 +314,16 @@
     const parsed = strokes.map((s) => parse(s, kana));
     const dots = parsed.filter((s) => s.dot).map((s) => s.dot);
     const st = parsed.filter((s) => s.legs && s.legs.length);
+    // 广 厂: a 撇 hanging from the left end of a bar is a post down to the tail's end with a left foot
+    const bars = st.flatMap((s) => s.legs).filter((l) => l.t === "H");
+    for (const s of st) {
+      if (!s.pie) continue;
+      const [v, d] = s.legs, top = v.a;
+      if (!bars.some((h) => Math.abs(h.a[1] - top[1]) < G.join && Math.abs(Math.min(h.a[0], h.b[0]) - top[0]) < G.join && Math.max(h.a[0], h.b[0]) > top[0] + 0.3)) continue;
+      const x = G.pieX * d.b[0] + (1 - G.pieX) * v.a[0];
+      s.legs = [{ t: "V", a: [x, top[1]], b: [x, d.b[1]], mid: [] }];
+      s.foot = -1;
+    }
     const legs = st.flatMap((s) => s.legs);
     const hs = legs.filter((l) => l.t === "H"), vs = legs.filter((l) => l.t === "V");
     // touches: a leg end close to another strip's line stops on it

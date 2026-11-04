@@ -68,6 +68,14 @@ test("grid: kana ticks turn up, い is posts, と starts with a mid bar", () => 
   assert.ok(y0 > 0.3, `と highest bar at ${y0}`);
 });
 
+test("grid: 广/厂 撇 is a post under the left end of the top bar", () => {
+  for (const ch of ["広", "原", "府"]) {
+    const g = gen(ch);
+    const posts = g.strips.flatMap((s) => s.slice(1).map((q, i) => [s[i], q])).filter(([p, q]) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) > 0.6);
+    assert.ok(posts.some(([p]) => p[0] < 0.15), `${ch}: no long post on the left`);
+  }
+});
+
 test("grid: kana marks keep the base and sit in the top-right corner", () => {
   const a = E.P.aspect;
   for (const [ch, base, n] of [["ど", "と", 2], ["ブ", "フ", 2], ["ぷ", "ふ", 1]]) {
