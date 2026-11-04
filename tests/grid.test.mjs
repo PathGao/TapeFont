@@ -85,6 +85,18 @@ test("grid: facing levels keep their white across a non-facing level between the
   assert.equal(Gr.place(cl, cl.map((c) => c.v), 0.3, w, 0.3, false), null);
 });
 
+test("grid: bars inside an enclosure close to hairline slits only when the white cannot fit", () => {
+  const Gr = require("../web/grid.js");
+  const cl = [0.2, 0.3, 0.4, 0.5, 0.6].map((v) => ({ v, items: [{ v, lo: 0.1, hi: 0.5 }] }));
+  const w = 0.1, tips = cl.map((c) => c.v), all = () => true;
+  assert.equal(Gr.place(cl, tips, 0.6, w, 0.3, true), null);
+  const k = Gr.place(cl, tips, 0.6, w, 0.3, true, all);
+  for (let i = 1; i < k.length; i++) assert.ok(k[i].p - k[i - 1].p >= w + Gr.G.slit - 1e-9);
+  // 日 at full tape keeps real white (no block)
+  const g = gen("日"), ys = g.strips.flatMap((s) => s.map((p) => p[1]));
+  assert.ok(new Set(ys.map((y) => y.toFixed(3))).size >= 3 && g.w === E.P.w);
+});
+
 test("grid: kana marks keep the base and sit in the top-right corner", () => {
   const a = E.P.aspect;
   for (const [ch, base, n] of [["ど", "と", 2], ["ブ", "フ", 2], ["ぷ", "ふ", 1]]) {

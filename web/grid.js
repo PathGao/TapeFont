@@ -6,8 +6,10 @@
  *      Turning strokes (折) are a run of H/V legs; hook tails (钩) are dropped or become a foot.
  *   2. lattice: H legs cluster into levels, V legs into columns (dots join both). Levels are
  *      laid equally spaced in the cell, keeping at least G.white tapes of white between facing
- *      strips; if the cell cannot hold that, the tape gets thinner, and at G.wMin the white
- *      becomes a hairline slit (Sato's dense block with slits). A level near the middle row
+ *      strips (also across non-facing levels between them); if the cell cannot hold that, the
+ *      white inside enclosures (口 日 目) becomes a hairline slit, so they read as Sato's solid
+ *      block with slits, and only then the tape gets thinner; at G.wMin all white may become
+ *      slits. A level near the middle row
  *      line snaps to it. Everything else (diagonal ends, free tips) follows a monotone warp
  *      through the levels/columns.
  *   3. geometry: H/V legs are strips on their level/column, a turning stroke is one strip with
@@ -35,6 +37,8 @@
     slit: 0.02,     // dense trick: white between strips becomes a hairline slit this wide
     wDense: 0.09,   // tape for 16+ strokes
     wMin: 0.07,     // thinnest tape
+    blockW: 0.11,   // at this tape or thinner, enclosures that cannot keep the white become blocks with slits
+                    // (at 0.07 a 0.3-tape white is as thin as a slit, so blocks only matter above it)
     mid: 0.48,      // middle row line
     midSnap: 0.05,  // a level this close to the middle row line moves onto it
     foot: 0.17,
@@ -369,12 +373,27 @@
       if (l.t !== "V" && !l[e + "x"]) tipsX.push(l[e][0]);
     }
     // tape width: the widest that leaves visible white everywhere, else the thinnest with slits
-    let w = strokes.length >= 16 ? Math.min(P.w, G.wDense) : P.w, ky, kx;
-    for (; ; w = Math.round((w - 0.005) * 1000) / 1000) {
-      ky = place(levels, tipsY, 1, w, G.white, true); kx = place(cols, tipsX, a, w, G.white, false);
+    // enclosures: facing bars (posts) with posts (bars) on both sides spanning both of them
+    const spans = (l, lo, hi, ax) => Math.min(l.a[ax], l.b[ax]) <= lo + G.join && Math.max(l.a[ax], l.b[ax]) >= hi - G.join;
+    const enclosed = (A, B, sides, ax) => A.items.some((p) => p.l && B.items.some((q) => {
+      if (!q.l) return false;
+      const lo = Math.max(p.lo, q.lo), hi = Math.min(p.hi, q.hi);
+      if (hi - lo < 0.02) return false;
+      const wall = (side) => sides.some((s) => (side ? s.a[1 - ax] >= hi - G.join : s.a[1 - ax] <= lo + G.join) && spans(s, A.v, B.v, ax));
+      return wall(0) && wall(1);
+    }));
+    const encY = (A, B) => enclosed(A, B, vs, 1), encX = (A, B) => enclosed(A, B, hs, 0);
+    const w0 = strokes.length >= 16 ? Math.min(P.w, G.wDense) : P.w;
+    let w, ky, kx;
+    // dense: if even the thinnest tape cannot keep the white, enclosures become blocks with slits
+    for (w = w0; ; w = Math.round((w - 0.005) * 1000) / 1000) {
+      for (const enc of w <= G.blockW + 1e-9 ? [false, true] : [false]) {
+        ky = place(levels, tipsY, 1, w, G.white, true, enc && encY); kx = place(cols, tipsX, a, w, G.white, false, enc && encX);
+        if (ky && kx) break;
+      }
       if ((ky && kx) || w <= G.wMin + 1e-9) break;
     }
-    const slitW = G.slit / w - 1;  // white = hairline
+    const slitW = G.slit / w;  // white = hairline
     if (!ky) ky = place(levels, tipsY, 1, w, slitW, true) || place(levels, tipsY, 1, w, -1, true);
     if (!kx) kx = place(cols, tipsX, a, w, slitW, false) || place(cols, tipsX, a, w, -1, false);
     const wy = warper(ky), wx = warper(kx);
