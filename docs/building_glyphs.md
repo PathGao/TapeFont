@@ -45,3 +45,4 @@ Outer bends of the merged outline are rounded about one tape width; strip ends a
   `.venv/bin/python -I src/tape.py`
   `.venv/bin/python -I src/sample.py build/hand.ttf out.png "line1|line2"`
 - Then refresh the web engine's data: `.venv/bin/python -I src/export_web.py`.
+- New glyphs also feed the part library that assembles missing chars (README, 部件拼字). After adding glyphs, rerun the gate before exporting: `.venv/bin/python -I src/compose_gate.py build/compose_compare.png`. A glyph whose parts sit where the normal char has them (left radical on the left, roof on top) gives clean parts; one that merges or moves strokes gives none.
