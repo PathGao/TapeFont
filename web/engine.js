@@ -7,8 +7,10 @@
  * Per line:
  *   1. each char gets a glyph: hand-built if we have one, else built from its stroke skeleton;
  *   2. the line is solved: horizontal levels of all glyphs are clustered, and each glyph is
- *      warped (monotone, piecewise linear in y) so its bars sit on the shared lines;
- *   3. strips/polys become outlines with Sato's corners (outer bends rounded ~1 tape,
+ *      warped (monotone, piecewise linear in y) so its bars sit on the shared lines, then bar
+ *      edges that just miss a neighbour's are moved onto it;
+ *   3. cells keep one width, but a narrow glyph's extra white to its neighbours is partly closed;
+ *   4. strips/polys become outlines with Sato's corners (outer bends rounded ~1 tape,
  *      strip ends and inner corners square), cuts are kept for masking.
  *
  * Works as a classic <script> (sets globalThis.TapeEngine) and in Node (module.exports).
@@ -25,7 +27,8 @@
     minSeg: 0.059,    // drop skeleton end segments shorter than this (hook tails)
     join: 1.5,        // a skeleton stroke end within this many tapes of another stroke joins it
     slit: 0.035,      // skeleton glyphs: least white between two facing parallel strips
-    minW: 0.075,      // skeleton glyphs too dense for that get thinner tape, down to this
+    hair: 0.012,      // ...unless the cell is too crowded: then down to this hairline slit
+    minW: 0.075,      // skeleton glyphs: crowded cells get thinner tape (about as much white as tape), down to this
     maxStretch: 1.8,  // skeleton glyphs fill the cell, up to this stretch per axis
     handStretch: 1.15,// hand glyphs fill the cell, up to this stretch per axis
     handStretchX: 1.3,// ...sideways up to this (narrow kana like く would leave holes in the row)
@@ -35,6 +38,9 @@
     bandChange: 0.35, // line solve: white between two bars (if over one tape) changes by at most this fraction
     minGap: 0.03,     // white between two bars never shrinks below one tape + this
     align: true,      // line solve on/off
+    optical: 0.5,     // spacing: share of the extra white between two glyphs' ink given back
+    opticalBase: 0.04,// ...extra = mean white per row beyond this
+    opticalCap: 0.17, // ...counting at most this much white on each side of a row
   };
   const MARKS = "ー一、。・.,〜!-ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶゕゖ";
   const KANA = /[぀-ヿ]/;
@@ -131,10 +137,10 @@
   }
 
   // Sato lays strips on a grid with real white between them. Facing parallel strips
-  // (overlapping along their length) are pushed apart to one tape + P.slit; near-equal
-  // levels merge into one shared line. If the cell is too small for that, the tape gets
-  // thinner (down to P.minW). The glyph is then warped (monotone, piecewise linear) so
-  // diagonals and ends follow their strips. k = 1: horizontal strips/y, k = 0: vertical/x.
+  // (overlapping along their length) are pushed apart to one tape + P.slit, as little as
+  // possible; near-equal levels merge into one shared line. Crowded cells get thinner tape
+  // (down to P.minW). The glyph is then warped (monotone, piecewise linear) so diagonals
+  // and ends follow their strips. k = 1: horizontal strips/y, k = 0: vertical/x.
   function spread(g, k) {
     const groups = [];
     for (const s of g.strips) for (let i = 0; i + 1 < s.length; i++) {
@@ -160,21 +166,24 @@
     const need = lv.map(() => 0);
     for (const [i, j] of pairs) need[j] = Math.max(need[j], need[i] + 1);
     const steps = Math.max(...need);
-    let w = g.w;
-    if (steps && steps * (w + P.slit) > size - w) w = Math.max(P.minW, (size - steps * P.slit) / (steps + 1));
-    const d = w + P.slit * (w / g.w), lo = w / 2, hi = size - w / 2;
-    const p = lv.map((L) => Math.min(Math.max(L.v, lo), hi));
-    for (let it = 0; it < 200; it++) {
-      let moved = false;
-      for (const [i, j] of pairs) {
-        const v = d - (p[j] - p[i]);
-        if (v > 1e-6) { p[i] -= v / 2; p[j] += v / 2; moved = true; }
-      }
-      for (let i = 0; i + 1 < p.length; i++) if (p[i + 1] < p[i]) { const m = (p[i] + p[i + 1]) / 2; p[i] = p[i + 1] = m; moved = true; }
-      for (let i = 0; i < p.length; i++) p[i] = Math.min(Math.max(p[i], lo), hi);
-      if (!moved) break;
-    }
-    if (k === 1 || w < g.w) g.w = Math.min(g.w, w);
+    if (!steps) return;
+    // Crowded cell: thinner tape, so that a chain of `steps` gaps would fit with one tape of white
+    // each. Strips only get pushed apart to P.slit; a chain too long even for
+    // that keeps what fits, down to a hairline slit (Sato's dense-sign block with slits).
+    const w = Math.min(g.w, Math.max(P.minW, size / (2 * steps + 1)));
+    const white = Math.max(P.hair, Math.min(P.slit, (size - w) / steps - w));
+    const d = w + white, lo = w / 2, hi = size - w / 2;
+    const n = lv.length, v = lv.map((L) => L.v), prev = lv.map(() => []), next = lv.map(() => []);
+    for (const [i, j] of pairs) { prev[j].push(i); next[i].push(j); }
+    // up/dn: highest/lowest place each level can take with every chain still fitting the cell
+    const up = [], dn = [], f = [], b = [];
+    for (let j = 0; j < n; j++) up[j] = Math.max(lo, j ? up[j - 1] : lo, ...prev[j].map((i) => up[i] + d));
+    for (let j = n - 1; j >= 0; j--) dn[j] = Math.min(hi, j < n - 1 ? dn[j + 1] : hi, ...next[j].map((m) => dn[m] - d));
+    // least push downwards (f) and upwards (b); both keep order and gaps, so their mean does too
+    for (let j = 0; j < n; j++) f[j] = Math.min(dn[j], Math.max(v[j], up[j], j ? f[j - 1] : lo, ...prev[j].map((i) => f[i] + d)));
+    for (let j = n - 1; j >= 0; j--) b[j] = Math.max(up[j], Math.min(v[j], dn[j], j < n - 1 ? b[j + 1] : hi, ...next[j].map((m) => b[m] - d)));
+    const p = f.map((x, j) => Math.min(Math.max((x + b[j]) / 2, lo), hi));
+    g.w = Math.min(g.w, w);
     const src = lv.map((L) => L.v), snap = new Map();
     lv.forEach((L, i) => L.vs.forEach((v) => snap.set(v, p[i])));
     const warp = (v) => {
@@ -235,13 +244,18 @@
 
   // ---------- line solve ----------
 
-  function levelsOf(g) {  // horizontal bars and block edges: [y, weight]
-    const out = [];
+  // Horizontal bars and block edges: c = the level (strip centerline, block edge), len, and its
+  // outline edges [y, kind] (kind 1 = top edge, ink below; -1 = bottom edge).
+  function levelsOf(g) {
+    const out = [], h = g.w / 2;
     const take = (pts, closed) => {
       const n = pts.length;
+      let A = 0;
+      if (closed) for (let i = 0; i < n; i++) A += pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1];
       for (let i = 0; i < (closed ? n : n - 1); i++) {
-        const a = pts[i], b = pts[(i + 1) % n], len = Math.abs(b[0] - a[0]);
-        if (Math.abs(b[1] - a[1]) < 1e-3 && len > 0.12 * g.aspect && a[1] > -0.01 && a[1] < 1.01) out.push([(a[1] + b[1]) / 2, len]);
+        const a = pts[i], b = pts[(i + 1) % n], len = Math.abs(b[0] - a[0]), c = (a[1] + b[1]) / 2;
+        if (!(Math.abs(b[1] - a[1]) < 1e-3 && len > 0.12 * g.aspect && a[1] > -0.01 && a[1] < 1.01)) continue;
+        out.push({ c, len, edges: closed ? [[c, Math.sign((b[0] - a[0]) * A)]] : [[c - h, 1], [c + h, -1]] });
       }
     };
     g.strips.forEach((s) => take(s, false));
@@ -249,12 +263,34 @@
     return out;
   }
 
-  function solveLine(glyphs) {
-    const items = [];
-    glyphs.forEach((g, gi) => {
-      if (!g || g.mark) return;
-      for (const [y, len] of levelsOf(g)) items.push({ y, wt: len * (g.hand ? 3 : 1), gi });
+  // Levels joined by thin white (under one tape: slits, small counters) form rigid groups that
+  // move as one, so thin white never changes. Groups shift onto shared lines; the wide white
+  // bands between groups absorb the shift (at most P.bandChange of themselves, never below
+  // P.minGap). The glyph is never scaled, and its ink never leaves the cell.
+  function planOf(g) {
+    const ink = inkY(g), levels = levelsOf(g);
+    const own = [...new Set(levels.map((L) => +L.c.toFixed(4)).concat(ink))].sort((p, q) => p - q);
+    const groups = [];
+    own.forEach((y, i) => {
+      if (i && y - own[i - 1] - g.w >= g.w) groups.push([y]); else (groups[groups.length - 1] || groups[groups.push([]) - 1]).push(y);
     });
+    const groupOf = (c) => groups.findIndex((G) => G.some((v) => Math.abs(v - c) < 1e-4));
+    const edges = levels.flatMap((L) => L.edges.map(([y, kind]) => ({ y, kind, k: groupOf(L.c) })));
+    const tol = g.hand ? P.tolHand : P.tolGen;
+    const fits = (k, d) => Math.abs(d) <= tol + 1e-9 && (!groups[k].includes(ink[0]) || d >= -ink[0] - 1e-9) && (!groups[k].includes(ink[1]) || d <= 1 - ink[1] + 1e-9);
+    const ok = (sh) => groups.every((G, i) => {  // white bands between groups
+      if (!i) return true;
+      const wo = G[0] - groups[i - 1][groups[i - 1].length - 1] - g.w, wn = wo + sh[i] - sh[i - 1];
+      return wn >= P.minGap && Math.abs(wn - wo) <= P.bandChange * wo + 1e-6;
+    });
+    return { g, ink, levels, groups, groupOf, edges, tol, fits, ok, shift: groups.map(() => 0) };
+  }
+
+  function solveLine(glyphs) {
+    const plans = glyphs.map((g) => (g && !g.mark ? planOf(g) : null));
+    // 1. shared lines: levels of all glyphs, clustered; a line is shared only if two glyphs use it
+    const items = [];
+    plans.forEach((pl, gi) => pl && pl.levels.forEach((L) => items.push({ y: L.c, wt: L.len * (pl.g.hand ? 3 : 1), gi })));
     items.sort((p, q) => p.y - q.y);
     const clusters = [];
     for (const it of items) {
@@ -266,7 +302,7 @@
     const anchorsOf = new Map();
     for (const c of clusters) {
       const owners = new Set(c.items.map((i) => i.gi));
-      if (owners.size < 2) continue;  // a line is shared only if two glyphs use it
+      if (owners.size < 2) continue;
       for (const gi of owners) {
         const mine = c.items.filter((i) => i.gi === gi).sort((p, q) => Math.abs(p.y - c.mean) - Math.abs(q.y - c.mean))[0];
         if (!anchorsOf.has(gi)) anchorsOf.set(gi, []);
@@ -274,18 +310,7 @@
       }
     }
     anchorsOf.forEach((anchors, gi) => {
-      const g = glyphs[gi];
-      // Levels joined by thin white (under one tape: slits, small counters) form rigid groups that
-      // move as one, so thin white never changes. Groups shift onto shared lines; the wide white
-      // bands between groups absorb the shift (at most P.bandChange of themselves, never below
-      // P.minGap). The glyph is never scaled, and its ink never leaves the cell.
-      const ink = inkY(g);
-      const tol = g.hand ? P.tolHand : P.tolGen;
-      const own = [...new Set(levelsOf(g).map(([y]) => +y.toFixed(4)).concat(ink))].sort((p, q) => p - q);
-      const groups = [];
-      own.forEach((y, i) => {
-        if (i && y - own[i - 1] - g.w >= g.w) groups.push([y]); else (groups[groups.length - 1] || groups[groups.push([]) - 1]).push(y);
-      });
+      const pl = plans[gi], { groups, ink, tol } = pl;
       const shift = groups.map((G) => {
         const mine = anchors.filter(([y, t]) => G.some((v) => Math.abs(v - y) < 1e-4) && Math.abs(y - t) <= tol);
         if (!mine.length) return 0;
@@ -295,15 +320,51 @@
         if (G.includes(ink[1])) d = Math.min(d, 1 - ink[1]);  // the base group may sink only to the cell bottom
         return d;
       });
-      const ok = (sh) => groups.every((G, i) => {  // white bands between groups
-        if (!i) return true;
-        const wo = G[0] - groups[i - 1][groups[i - 1].length - 1] - g.w, wn = wo + sh[i] - sh[i - 1];
-        return wn >= P.minGap && Math.abs(wn - wo) <= P.bandChange * wo + 1e-6;
-      });
       // drop the smallest moves first until every band is fine
       const order = shift.map((d, i) => i).filter((i) => shift[i]).sort((p, q) => Math.abs(shift[p]) - Math.abs(shift[q]));
-      while (!ok(shift) && order.length) shift[order.shift()] = 0;
-      if (!shift.some((d) => d)) return;
+      while (!pl.ok(shift) && order.length) shift[order.shift()] = 0;
+      pl.shift = shift;
+    });
+    // 2. neighbours: a bar edge 0.004-0.04 off its neighbour's reads as a mistake. Each group may
+    // still move (same limits as above) so that its edges meet the neighbours' edges exactly,
+    // if that leaves fewer near misses; top edges meet top edges, bottoms meet bottoms.
+    const near = (pl, k, d, gi) => {
+      let cost = Math.abs(d - pl.shift[k]) * 0.01;
+      for (const n of [plans[gi - 1], plans[gi + 1]]) {
+        if (!n) continue;
+        for (const e of pl.edges) {
+          if (e.k !== k) continue;
+          let m = Infinity;
+          for (const f of n.edges) if (f.kind === e.kind) m = Math.min(m, Math.abs(f.y + n.shift[f.k] - e.y - d));
+          if (m <= 0.004) cost -= 1; else if (m < 0.04) cost += 2;
+        }
+      }
+      return cost;
+    };
+    for (let sweep = 0; sweep < 3; sweep++) {
+      plans.forEach((pl, gi) => {
+        if (!pl) return;
+        pl.groups.forEach((G, k) => {
+          const cands = [pl.shift[k], 0];
+          for (const n of [plans[gi - 1], plans[gi + 1]]) {
+            if (!n) continue;
+            for (const e of pl.edges) if (e.k === k) for (const f of n.edges) if (f.kind === e.kind) cands.push(f.y + n.shift[f.k] - e.y);
+          }
+          let best = pl.shift[k], bc = near(pl, k, best, gi);
+          for (const d of cands) {
+            if (!pl.fits(k, d)) continue;
+            const sh = pl.shift.slice(); sh[k] = d;
+            if (!pl.ok(sh)) continue;
+            const c = near(pl, k, d, gi);
+            if (c < bc - 1e-9) { bc = c; best = d; }
+          }
+          pl.shift[k] = best;
+        });
+      });
+    }
+    plans.forEach((pl) => {
+      if (!pl || !pl.shift.some((d) => d)) return;
+      const { g, groups, shift } = pl;
       const pts = groups.flatMap((G, i) => [[G[0], G[0] + shift[i]], [G[G.length - 1], G[G.length - 1] + shift[i]]]);
       const uniq = pts.filter((p, i) => !i || p[0] - pts[i - 1][0] > 1e-6);
       mapGlyph(g, (x) => x, warper(uniq));
@@ -394,16 +455,55 @@
     return outlines(g).map((p) => rounded(wound(p), g.w, g.sharp));
   }
 
+  // ---------- optical spacing ----------
+
+  const ROWS = 25;
+  function profile(g) {  // per row of the cell: leftmost and rightmost ink x (Infinity / -Infinity: no ink)
+    const L = Array(ROWS).fill(Infinity), R = Array(ROWS).fill(-Infinity);
+    const put = (r, x) => { x = Math.min(Math.max(x, 0), g.aspect); L[r] = Math.min(L[r], x); R[r] = Math.max(R[r], x); };
+    const row = (y) => Math.min(ROWS - 1, Math.floor(y * ROWS));
+    for (const s of outlines(g)) for (let i = 0; i < s.length; i++) {
+      // x is linear along an edge, so its extremes in a row are where the edge enters and leaves it
+      const a = s[i], b = s[(i + 1) % s.length], lo = Math.max(Math.min(a[1], b[1]), 0), hi = Math.min(Math.max(a[1], b[1]), 1);
+      if (lo > hi) continue;
+      const at = (y) => (Math.abs(b[1] - a[1]) < 1e-12 ? null : a[0] + ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]));
+      if (at(lo) === null) { put(row(lo), a[0]); put(row(lo), b[0]); continue; }
+      for (let r = row(lo); r <= row(hi); r++) {
+        put(r, at(Math.max(lo, r / ROWS))); put(r, at(Math.min(hi, (r + 1) / ROWS)));
+      }
+    }
+    return { L, R, w: g.aspect };
+  }
+
+  // Every cell has the same width, so a narrow glyph (く し い ・ 小) leaves a hole in the row.
+  // Give back part of the white between two neighbours' ink (mean over the rows, each side counted
+  // up to P.opticalCap), but never so much that ink in nearby rows comes closer than one gap.
+  function tighten(a, b) {
+    const reach = Math.ceil(P.tolGen * ROWS) + 1;  // rows the line solve may move ink into
+    let room = Infinity, sum = 0, n = 0;
+    for (let r = 0; r < ROWS; r++) {
+      const ra = a.w - a.R[r], lb = b.L[r];
+      if (Number.isFinite(ra) || Number.isFinite(lb)) {
+        sum += Math.min(ra, P.opticalCap) + Math.min(lb, P.opticalCap); n++;
+      }
+      for (let q = Math.max(0, r - reach); q <= Math.min(ROWS - 1, r + reach); q++) room = Math.min(room, ra + b.L[q]);
+    }
+    if (!Number.isFinite(room)) room = a.w - Math.max(...a.R) + Math.min(...b.L);  // no rows near each other
+    return n ? Math.min(Math.max(P.optical * (sum / n - P.opticalBase), 0), Math.max(room - 0.002, 0)) : 0;  // 0.002: the solve shifts miters a hair
+  }
+
   // ---------- public ----------
 
   function layoutLine(text, data, opts = {}) {
     const lang = opts.lang && opts.lang !== "auto" ? opts.lang : KANA.test(text) ? "ja" : "zh";
     const glyphs = [...text].map((ch) => (ch === " " || ch === "　" ? null : glyphFor(ch, lang, data)));
+    const prof = glyphs.map((g) => g && profile(g));  // before the solve: toggling it never moves glyphs sideways
     if (opts.align ?? P.align) solveLine(glyphs);
     let x = 0;
     const chars = [...text].map((ch, i) => {
       const g = glyphs[i];
       const width = ch === "　" ? P.aspect : g ? g.aspect : P.space;
+      if (i && prof[i] && prof[i - 1]) x -= tighten(prof[i - 1], prof[i]);
       const item = { ch, x, width, shapes: g ? shapesOf(g) : [], cuts: g ? g.cuts : [], missing: !g && ch.trim() !== "" };
       x += width + P.gap;
       return item;
