@@ -84,6 +84,26 @@ test("grid: kana bowls are one box of long runs (ち ら), not steps", () => {
   }
 });
 
+test("grid: kana loops are boxes (お ね よ は)", () => {
+  const Gr = require("../web/grid.js");
+  // four runs turning the same way round, each at least 2 tapes: a box
+  const box = (s, w) => s.some((p, i) => {
+    const q = s.slice(i, i + 5);
+    if (q.length < 5 || q.slice(1).some((r, k) => Math.hypot(r[0] - q[k][0], r[1] - q[k][1]) < 2 * w)) return false;
+    const turn = [1, 2, 3].map((k) => Math.sign((q[k][0] - q[k - 1][0]) * (q[k + 1][1] - q[k][1]) - (q[k][1] - q[k - 1][1]) * (q[k + 1][0] - q[k][0])));
+    return turn[0] !== 0 && turn.every((t) => t === turn[0]);
+  });
+  for (const ch of ["お", "ね", "よ", "は"]) {
+    const g = gen(ch);
+    assert.ok(g.strips.some((s) => box(s, g.w)), `${ch} has no box ${JSON.stringify(g.strips)}`);
+  }
+  const L = Gr.G.loopMin;
+  Gr.G.loopMin = 0;
+  const off = gen("は");
+  Gr.G.loopMin = L;
+  assert.ok(!off.strips.some((s) => box(s, off.w)), "は box without the loop rule");
+});
+
 test("grid: ろ's diagonal back under its top bar stays a slab", () => {
   const g = gen("ろ");
   assert.equal(g.polys.length, 1, JSON.stringify(g));

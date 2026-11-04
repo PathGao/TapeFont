@@ -24,7 +24,7 @@
 (function (root) {
   const G = {
     eps: 0.03,      // RDP tolerance on the skeleton (em)
-    kanaEps: 0.03,  // ... for kana: coarse, so a curve is a few long legs, never a staircase of short ones
+    loopMin: 0.25,  // kana: a loop becomes a box at least this big (em); 0 = off
     kanaJog: 0.05,  // kana: a leg shorter than this between two parallel legs is a step, dropped (em)
     kanaBack: 1,    // kana: a straight diagonal that runs back under a bar stays a slab
     kanaCorner: 0.2, // kana: a diagonal shorter than this between a bar and a post is a rounded corner, dropped (em)
@@ -107,14 +107,45 @@
 
   // ---------- 1. parse ----------
 
+  // kana loops (す む ね る): Sato builds a loop as a box of four runs, so the first loop of a stroke
+  // (where it crosses itself) becomes its bounding box, at least G.loopMin a side, traversed the same way round
+  function boxLoop(raw) {
+    const cross = (p, q, r, s) => {
+      const d = (q[0] - p[0]) * (s[1] - r[1]) - (q[1] - p[1]) * (s[0] - r[0]);
+      if (Math.abs(d) < 1e-12) return null;
+      const t = ((r[0] - p[0]) * (s[1] - r[1]) - (r[1] - p[1]) * (s[0] - r[0])) / d, u = ((r[0] - p[0]) * (q[1] - p[1]) - (r[1] - p[1]) * (q[0] - p[0])) / d;
+      return t > 0 && t < 1 && u > 0 && u < 1 ? [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])] : null;
+    };
+    for (let i = 0; i + 1 < raw.length; i++) for (let j = i + 2; j + 1 < raw.length; j++) {
+      const X = cross(raw[i], raw[i + 1], raw[j], raw[j + 1]);
+      if (!X) continue;
+      const loop = [X, ...raw.slice(i + 1, j + 1)];
+      if (len(loop) < 3 * G.dot) return raw;  // a tiny curl, not a loop
+      let [x0, x1, y0, y1] = [Math.min(...loop.map((p) => p[0])), Math.max(...loop.map((p) => p[0])), Math.min(...loop.map((p) => p[1])), Math.max(...loop.map((p) => p[1]))];
+      const grow = (lo, hi) => { const g = Math.max(0, G.loopMin - (hi - lo)) / 2; return [lo - g, hi + g]; };
+      [x0, x1] = grow(x0, x1); [y0, y1] = grow(y0, y1);
+      const area = loop.reduce((s, p, k) => { const q = loop[(k + 1) % loop.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0);
+      // X onto the nearest side, then the corners from there the way the loop turns
+      const d = [X[0] - x0, x1 - X[0], X[1] - y0, y1 - X[1]], k = d.indexOf(Math.min(...d));
+      const Y = k === 0 ? [x0, X[1]] : k === 1 ? [x1, X[1]] : k === 2 ? [X[0], y0] : [X[0], y1];
+      const C = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];  // clockwise on screen (y down): area > 0
+      const ang = (p) => Math.atan2(p[1] - (y0 + y1) / 2, p[0] - (x0 + x1) / 2), a0 = ang(Y);
+      const step = (p) => { let a = ang(p) - a0; while (a <= 0) a += 2 * Math.PI; return area > 0 ? a : 2 * Math.PI - a; };
+      C.sort((p, q) => step(p) - step(q));
+      return [...raw.slice(0, i + 1), Y, ...C, Y, ...raw.slice(j + 1)];
+    }
+    return raw;
+  }
+
   function kind(a, b) {
     const ang = (Math.atan2(Math.abs(b[1] - a[1]), Math.abs(b[0] - a[0])) * 180) / Math.PI;
     return ang < G.hv ? "H" : ang > 90 - G.hv ? "V" : "D";
   }
 
   function parse(stroke, kana) {
-    const raw = stroke.map((p) => [p[0] / 1000, p[1] / 1000]);
-    const pts = rdp(raw, kana ? G.kanaEps : G.eps);
+    let raw = stroke.map((p) => [p[0] / 1000, p[1] / 1000]);
+    if (kana && G.loopMin) raw = boxLoop(raw);
+    const pts = rdp(raw, G.eps);
     if (len(pts) < G.dot) {
       const c = raw.reduce((s, p) => [s[0] + p[0] / raw.length, s[1] + p[1] / raw.length], [0, 0]);
       return { dot: c, dir: [raw[raw.length - 1][0] - raw[0][0], raw[raw.length - 1][1] - raw[0][1]] };
