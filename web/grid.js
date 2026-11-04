@@ -39,6 +39,7 @@
     midSnap: 0.05,  // a level this close to the middle row line moves onto it
     foot: 0.17,
     kanaD: 0.15,    // kana: a diagonal longer than this (em) becomes an H/V run     // length of a foot that replaces a hook (cell units)
+    kanaTick: 0.25, // kana: a lone diagonal shorter than this (em) is a tick, built as a short bar or post
     markH: 0.27,    // ゛: two posts from the top to this
     markGap: 0.035, // white between the two posts
     ringR: 0.1,     // ゜: ring radius
@@ -101,19 +102,32 @@
     if (legs.length === 1 && legs[0].t === "D") {
       const l = legs[0], dx = Math.abs(l.b[0] - l.a[0]), dy = Math.abs(l.b[1] - l.a[1]);
       if (dx > 1.4 * dy && dist(l.a, l.b) < G.bar) legs[0] = { t: "H", a: l.a, b: [l.b[0], l.a[1]] };
+      // kana ticks (シ ン ツ ソ): a short bar or post, whichever the tick is closer to
+      else if (kana && dist(l.a, l.b) < G.kanaTick) {
+        const m = [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2];
+        legs[0] = dx >= dy ? { t: "H", a: [l.a[0], m[1]], b: [l.b[0], m[1]] } : { t: "V", a: [m[0], l.a[1]], b: [m[0], l.b[1]] };
+      }
     }
     // kana: Sato builds curves and long diagonals as H/V runs with rounded bends; the corner
-    // goes on the side the curve bulges to (straight: down first)
+    // goes on the side the curve bulges to (straight: the lower corner, so ticks turn up)
     if (kana) {
-      const nD = legs.filter((l) => l.t === "D" && dist(l.a, l.b) >= G.kanaD).length;
-      legs = legs.flatMap((l) => {
+      // a steep lead-in into a post is part of the post (い right)
+      if (legs.length > 1 && legs[0].t === "D" && legs[1].t === "V" && Math.abs(legs[0].b[1] - legs[0].a[1]) >= 0.8 * Math.abs(legs[0].b[0] - legs[0].a[0]))
+        legs.splice(0, 2, { t: "V", a: [legs[1].a[0], legs[0].a[1]], b: legs[1].b, mid: [] });
+      const nD =legs.filter((l) => l.t === "D" && dist(l.a, l.b) >= G.kanaD).length;
+      legs = legs.flatMap((l, i) => {
         if (l.t !== "D" || dist(l.a, l.b) < G.kanaD) return [l];
         const c1 = [l.a[0], l.b[1]], c2 = [l.b[0], l.a[1]];
         const m = l.mid.reduce((best, q) => (lineDist(q, l.a, l.b) > lineDist(best, l.a, l.b) ? q : best), l.mid[0] || null);
         const curved = m && lineDist(m, l.a, l.b) > 0.02;
-        // straight 捺 (さ き) and zigzags of straight diagonals (く へ) stay slabs
-        if (!curved && ((l.b[0] > l.a[0] && l.b[1] > l.a[1]) || nD > 1)) return [l];
-        const c = curved && dist(m, c2) < dist(m, c1) ? c2 : c1;
+        // straight 捺 (さ き) and zigzags of straight diagonals (く へ) stay slabs; a 捺 after a post is its foot (い)
+        if (!curved && ((!i && l.b[0] > l.a[0] && l.b[1] > l.a[1]) || nD > 1)) return [l];
+        const c = curved ? (dist(m, c2) < dist(m, c1) ? c2 : c1) : c1[1] >= c2[1] ? c1 : c2;
+        // a stroke that starts with a curve over the top starts with a bar at mid height (と)
+        if (curved && !i && legs.length > 1 && c === c2 && l.b[1] > l.a[1] + 0.1) {
+          const y = (l.a[1] + l.b[1]) / 2;
+          return [{ t: "H", a: [l.a[0], y], b: [l.b[0], y], mid: [] }, { t: "V", a: [l.b[0], y], b: l.b, mid: [] }];
+        }
         return [{ t: kind(l.a, c), a: l.a, b: c, mid: [] }, { t: kind(c, l.b), a: c, b: l.b, mid: [] }];
       }).reduce((out, l) => {  // merge runs of the same kind
         const L = out[out.length - 1];

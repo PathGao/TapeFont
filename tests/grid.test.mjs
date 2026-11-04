@@ -60,6 +60,14 @@ test("generated chars lay out in a line with either generator", () => {
   E.P.generator = "grid";
 });
 
+test("grid: kana ticks turn up, い is posts, と starts with a mid bar", () => {
+  const up = (s) => s[s.length - 1][1] < Math.max(...s.map((p) => p[1])) - 0.1 && s[s.length - 1][0] > s[0][0];
+  assert.ok(gen("ル").strips.some(up), "ル right stroke is a U ending up");
+  assert.equal(gen("い").polys.length, 0, "い has no slabs");
+  const t = gen("と"), y0 = Math.min(...t.strips.flatMap((s) => s.filter((p, i) => i && Math.abs(p[1] - s[i - 1][1]) < 1e-6).map((p) => p[1])));
+  assert.ok(y0 > 0.3, `と highest bar at ${y0}`);
+});
+
 test("grid: kana marks keep the base and sit in the top-right corner", () => {
   const a = E.P.aspect;
   for (const [ch, base, n] of [["ど", "と", 2], ["ブ", "フ", 2], ["ぷ", "ふ", 1]]) {
