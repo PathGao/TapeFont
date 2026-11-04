@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 H = preview.H
 SEED = 20261104
 NO_HAND = "鷹語論識議護響驚灣聽歡麗織職鬱讓龍纏驗戀釁永必書飛乘為"
-SHOW = "がどぶブぷパゴジいルと広府原座病方言計主賀里曜題贈錯"
+SHOW = "がどぶブぷパゴジいルと広府原座病方言計主賀里曜題贈錯渋鉄冬列线夏森林伞带季口金注点木国"
 
 
 def hand_glyphs():
@@ -109,7 +109,7 @@ FONT = ImageFont.truetype("/System/Library/Fonts/Hiragino Sans GB.ttc", 16)
 
 def sheet(hand, tune, test, gens, out, picks=None):
     rng = random.Random(1)
-    show = [c for c in SHOW if c in hand]  # known failure patterns: kana marks, 广 厂, top dots, dense blocks
+    show = list(SHOW)  # known failure patterns: kana marks, 广 厂, dots, slabs, holes, dense blocks (with or without a hand glyph)
     picks = picks or show + rng.sample([c for c in tune if c not in show], 16) + rng.sample([c for c in test if c not in show], 16) + [c for c in NO_HAND if c not in hand][:12]
     gl = {gen: generate(picks, gen) for gen in gens}
     W = int(0.68 * H)

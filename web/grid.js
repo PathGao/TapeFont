@@ -16,7 +16,8 @@
  *      bends; ends that touch another strip stop on its line, L corners of separate strokes
  *      merge into one strip (so the bend is rounded). D legs are one-tape slabs cut flush
  *      (horizontal cuts when steep or meeting a bar, vertical when shallow or meeting a post).
- *      Short shallow 撇 become bars, dots become square blocks.
+ *      Short shallow 撇 become bars, dots short bars/posts along their direction (at least 2 tapes).
+ *   4. holes: touches that close a hole the thin skeleton lacks are undone (buildHoles).
  * Output: the glyphs/manual JSON format (strips/polys/cuts/sharp).
  * Classic <script> sets globalThis.TapeGrid; Node: module.exports.
  */
@@ -46,6 +47,7 @@
     poke: 0.4,      // least distance from the outer strip to a free tip beyond it, in tapes
     slit: 0.02,     // dense trick: white between strips becomes a hairline slit this wide
     wDense: 0.09,   // tape for 16+ strokes
+    endCorner: 1,   // a stroke end that meets another stroke's end makes the other end meet it too (one rounded corner)
     wMin: 0.07,     // thinnest tape
     blockW: 0.11,   // at this tape or thinner, enclosures that cannot keep the white become blocks with slits
                     // (at 0.07 a 0.3-tape white is as thin as a slit, so blocks only matter above it)
@@ -505,6 +507,19 @@
         if (o && Math.min(dist(pt, o.a), dist(pt, o.b)) > G.joinSpan) touched.push(k);
       }
     });
+    // end meets end (box corners of 口 金 木): the other end stops on this strip's line too, so both
+    // ends are one point and mergeCorners makes them one strip with a rounded bend
+    if (G.endCorner) {
+      const ends = new Map();
+      st.forEach((s) => { ends.set(s.legs[0], (ends.get(s.legs[0]) || []).concat("a")); const l = s.legs[s.legs.length - 1]; ends.set(l, (ends.get(l) || []).concat("b")); });
+      for (const [leg, es] of ends) for (const e of es) {
+        if (leg.t === "D") continue;
+        const o = leg[e + (leg.t === "H" ? "x" : "y")];
+        if (!o || o.isDot || leg.isDot || !ends.has(o)) continue;
+        const oe = ends.get(o).find((x) => dist(leg[e], o[x]) < G.joinSpan), ax = o.t === "H" ? "x" : "y";
+        if (oe && !o[oe + ax]) { o[oe + ax] = leg; o[oe + "n"] = null; }
+      }
+    }
     const d0 = 0.03;
     const yItems = hs.map((l) => ({ v: l.a[1], lo: Math.min(l.a[0], l.b[0]), hi: Math.max(l.a[0], l.b[0]), l }))
       .concat(dots.map((c) => ({ v: c[1], lo: c[0] - d0, hi: c[0] + d0, dot: c })));
@@ -533,12 +548,12 @@
     const encY = (A, B) => dotOnly(A) || dotOnly(B) || enclosed(A, B, vs, 1), encX = (A, B) => dotOnly(A) || dotOnly(B) || enclosed(A, B, hs, 0);
     const w0 = strokes.length >= 16 ? Math.min(P.w, G.wDense) : P.w;
     let w, ky, kx;
-    // dense: if even the thinnest tape cannot keep the white, enclosures become blocks with slits
+    // crowded: enclosures (and dots) become blocks with slits before the tape gets thinner, per axis
     for (w = w0; ; w = Math.round((w - 0.005) * 1000) / 1000) {
-      for (const enc of w <= G.blockW + 1e-9 ? [false, true] : [false]) {
-        ky = place(levels, tipsY, 1, w, G.white, true, enc && encY); kx = place(cols, tipsX, a, w, G.white, false, enc && encX);
-        if (ky && kx) break;
-      }
+      const passes = w <= G.blockW + 1e-9 ? [[false, false], [encY, encX]] : [[false, false]];
+      ky = null; kx = null;
+      for (const [ey] of passes) if (!ky) ky = place(levels, tipsY, 1, w, G.white, true, ey);
+      for (const [, ex] of passes) if (!kx) kx = place(cols, tipsX, a, w, G.white, false, ex);
       if ((ky && kx) || w <= G.wMin + 1e-9) break;
     }
     const slitW = G.slit / w;  // white = hairline
@@ -607,7 +622,10 @@
         const sg = Math.sign(pts[1][ax] - pts[0][ax]) || 1, need = 2 * w - Math.abs(pts[1][ax] - pts[0][ax]), hi = ax ? 1 : a;
         const [ga, gb] = ta && tb ? [0, 0] : ta ? [0, need] : tb ? [need, 0] : [need / 2, need / 2];
         const lim = (e, v) => { const n = l[e + "n"]; if (!n) return v; const m = (ax ? lvY : colX)(n.l) + n.s * (w / 2 + G.white * w); return Math.min(Math.max(n.s > 0 ? Math.max(v, m) : Math.min(v, m), 0), hi); };  // not into the white of a line nearby
-        pts[0][ax] = lim("a", Math.min(Math.max(pts[0][ax] - sg * ga, 0), hi)); pts[1][ax] = lim("b", Math.min(Math.max(pts[1][ax] + sg * gb, 0), hi));
+        const grow = (ga, gb) => { pts[0][ax] = lim("a", Math.min(Math.max(pts[0][ax] - sg * ga, 0), hi)); pts[1][ax] = lim("b", Math.min(Math.max(pts[1][ax] + sg * gb, 0), hi)); };
+        grow(ga, gb);
+        const more = 2 * w - Math.abs(pts[1][ax] - pts[0][ax]);  // one end stopped (cell edge, white): the other end takes the rest
+        if (more > 1e-9 && !ta && !tb) grow(more, more);
       }
       if (s.foot && L[L.length - 1].t === "V") {
         const e = pts[pts.length - 1];
@@ -700,7 +718,7 @@
     });
   }
 
-  const api = { G, build, parse, marksOf, place };
+  const api = { G, build, parse, marksOf, place, holes: (g) => holes(raster(g, g.aspect, G.holeRows)) };
   root.TapeGrid = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);

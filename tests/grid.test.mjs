@@ -97,14 +97,43 @@ test("grid: bars inside an enclosure close to hairline slits only when the white
   assert.ok(new Set(ys.map((y) => y.toFixed(3))).size >= 3 && g.w === E.P.w);
 });
 
-test("grid: the top dot of 言 主 計 is a post from the top edge, side dots stay squares", () => {
+test("grid: the top dot of 言 主 計 is a post from the top edge", () => {
   for (const ch of ["言", "主", "計"]) {
     const g = gen(ch);
     assert.ok(!g.polys.some((p) => Math.min(...p.map((q) => q[1])) < 0.15), `${ch} has a block at the top`);
     const ends = g.strips.flatMap((s) => [[s[0], s[1]], [s[s.length - 1], s[s.length - 2]]]);
     assert.ok(ends.some(([p, q]) => p[1] === 0 && Math.abs(p[0] - q[0]) < 1e-6), `${ch} top post`);
   }
-  assert.ok(gen("冰").polys.length >= 2, "冫 dots stay blocks");
+});
+
+test("grid: dots are bars or posts at least 2 tapes long, never squares (氵 灬)", () => {
+  for (const ch of ["注", "点", "冰", "渋"]) {
+    const g = gen(ch), sq = (P) => Math.max(...P.map((p) => p[0])) - Math.min(...P.map((p) => p[0])) < 1.5 * g.w && Math.max(...P.map((p) => p[1])) - Math.min(...P.map((p) => p[1])) < 1.5 * g.w;
+    assert.ok(!g.polys.some(sq), `${ch} has a square block`);
+  }
+  // 灬 of 点: four posts at the bottom, each at least 2 tapes long
+  const g = gen("点"), low = g.strips.filter((s) => s.every((p) => p[1] > 0.7) && s.length === 2 && Math.abs(s[0][0] - s[1][0]) < 1e-9);
+  assert.equal(low.length, 4, JSON.stringify(g.strips));
+  for (const s of low) assert.ok(Math.abs(s[1][1] - s[0][1]) >= 2 * g.w - 1e-6, JSON.stringify(s));
+});
+
+test("grid: slab tips are blunt, 撇/捺 of 木 end in the bottom corners", () => {
+  for (const ch of CHARS) for (const P of gen(ch).polys) {
+    if (P.length !== 4) continue;
+    for (let i = 0; i < 4; i++) {  // interior angles of a slab: no blade sharper than asin(G.blunt)
+      const [a, b, c] = [P[(i + 3) % 4], P[i], P[(i + 1) % 4]], u = [a[0] - b[0], a[1] - b[1]], v = [c[0] - b[0], c[1] - b[1]];
+      const ang = Math.acos((u[0] * v[0] + u[1] * v[1]) / (Math.hypot(...u) * Math.hypot(...v)));
+      assert.ok(ang > Math.asin(0.6) - 0.02, `${ch} blade ${(ang * 180) / Math.PI}`);
+    }
+  }
+  const g = gen("木"), pts = g.polys.flat();
+  for (const x of [0, g.aspect]) assert.ok(pts.some((p) => Math.abs(p[1] - 1) < 1e-9 && Math.abs(p[0] - x) < g.w), `木 no slab end at (${x}, 1)`);
+});
+
+test("grid: no more holes than the skeleton has; frames stay closed, end-to-end corners close", () => {
+  const Gr = require("../web/grid.js");
+  for (const [ch, n] of [["口", 1], ["日", 2], ["田", 4], ["回", 2], ["国", 1], ["电", 2]]) assert.equal(Gr.holes(gen(ch)), n, ch);
+  for (const ch of ["林", "伞", "鉄"]) assert.equal(Gr.holes(gen(ch)), 0, ch);
 });
 
 test("grid: kana marks keep the base and sit in the top-right corner", () => {
