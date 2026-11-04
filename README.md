@@ -92,6 +92,7 @@ node web/cli.js "新宿駅南口改札|左側通行" out.json
 一行文字
   │
   ├─ 每个字取字形 ──── 有手搭字？ ── 是 → glyphs/manual/<码位>.json
+  │                                  ├ 否，能用部件拼？ → 从手搭字里切下的部件拼成（web/compose.js）
   │                                  └ 否 → 中日文笔画骨架 → 拉直、吸附横竖
   │                                         → 相对的横/竖之间强制留白缝
   │                                         → 端点沿自身方向接到邻笔，短点变方块
@@ -112,6 +113,25 @@ node web/cli.js "新宿駅南口改札|左側通行" out.json
 没有手搭字时，引擎从骨架生成。简单的字能读，笔画多的字还偏黑，这些字要靠继续手搭来补：
 
 ![手搭字与骨架生成字](docs/images/fallback.png)
+
+### 部件拼字
+
+没有手搭字、但能拆成部件的字，先试着用手搭字里的部件拼：
+
+```
+拆字    data/components.jsonl：每个字的部件树（部件、位置、框、笔画号）
+        日文字形来自 KanjiVG 的分组，中文字形（含简体）来自 Make Me a Hanzi 的 dictionary.txt
+切部件  src/compose_lib.py：把骨架笔画对到手搭字上，每段胶带归给它压着的笔画，
+        按部件树切出各部件的胶带；部件必须盖全自己的笔画、不带别人的胶带
+        同一部件同一位置有多份时，取和其他版本最像的一份 → data.js 的 lib
+拼字    web/compose.js：部件放进字里的框；左右、上下二分时按部件在原字里的比例分界
+        （左旁宽 0.27–0.38），中间留白 0.04；胶带宽不变，只移中线
+把关    src/compose_gate.py：常用字（GB2312 一级 + JIS 第一水准）拼字版和骨架版
+        各打一次分，拼字版全部来自部件、笔画全、空洞和白缝不差于骨架、
+        整体形状不比骨架离参考字体更远、不多出黑块，才收进 data/compose_ok.tsv
+```
+
+更新：`.venv/bin/python -I src/compose_gate.py build/compose_compare.png`，再跑 `src/export_web.py`。部件树重建（需要 `data/raw/`）：`.venv/bin/python -I src/data_prep/build_components.py .`。
 
 ## 一个字怎么搭
 
@@ -147,7 +167,9 @@ TapeFont/
 ├── src/
 │   ├── tape.py         字形 → build/hand.ttf
 │   ├── manual.py       渲染一个字，和照片描字比对
-│   ├── export_web.py   字形 + 骨架 → web/data.js
+│   ├── export_web.py   字形 + 骨架 + 部件 → web/data.js
+│   ├── compose_lib.py  从手搭字切部件
+│   ├── compose_gate.py 部件拼字的质量关
 │   ├── raster_web.py   引擎输出 → PNG
 │   ├── preview.py      完整度、辨识度检查
 │   ├── review_sheet.py 评审对照图

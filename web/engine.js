@@ -111,8 +111,7 @@
     });
   }
 
-  function fromSkeleton(ch, strokes) {
-    const a = P.aspect, w = P.w;
+  function fromSkeleton(ch, strokes, a = P.aspect, w = P.w) {
     let strips = strokes.map(straighten).filter((s) => s.length > 1);
     strips = fitSkeleton(strips, a, w);
     const g = { ch, aspect: a, w, strips, polys: [], cuts: [], sharp: [], hand: false };
@@ -228,6 +227,10 @@
 
   function glyphFor(ch, lang, data) {
     if (data.hand[ch]) return fromHand(ch, data.hand[ch]);
+    // assembled from hand-built parts (web/compose.js), for chars that passed src/compose_gate.py
+    const C = data.comp && data.comp[ch] && (root.TapeCompose || (typeof require === "function" ? require("./compose.js") : null));
+    const e = C && C.compose(ch, data, { P, fromSkeleton });
+    if (e) return Object.assign(fromHand(ch, e), { hand: false, composed: true });
     const order = lang === "ja" ? ["ja", "zh"] : ["zh", "ja"];
     for (const k of order) if (data[k][ch]) return fromSkeleton(ch, data[k][ch]);
     return null;
@@ -448,7 +451,7 @@
     return out;
   }
 
-  const api = { P, layoutLine, lineSVG, flatten };
+  const api = { P, layoutLine, lineSVG, flatten, glyphFor };
   root.TapeEngine = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);
