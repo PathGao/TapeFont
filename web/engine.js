@@ -35,6 +35,7 @@
     bandChange: 0.35, // line solve: white between two bars (if over one tape) changes by at most this fraction
     minGap: 0.03,     // white between two bars never shrinks below one tape + this
     align: true,      // line solve on/off
+    generator: "grid",  // chars without a hand glyph: "grid" (Sato's lattice, web/grid.js) or "trace" (old centerline trace)
   };
   const MARKS = "ー一、。・.,〜!-ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶゕゖ";
   const KANA = /[぀-ヿ]/;
@@ -226,11 +227,21 @@
     return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   }
 
+  function skeletonOf(ch, lang, data) {
+    const order = lang === "ja" ? ["ja", "zh"] : ["zh", "ja"];
+    for (const k of order) if (data[k][ch]) return data[k][ch];
+    return null;
+  }
+
+  const Grid = typeof module !== "undefined" ? require("./grid.js") : root.TapeGrid;
+  function generate(ch, strokes, gen = P.generator) {
+    return gen === "grid" ? Grid.build(ch, strokes, P) : fromSkeleton(ch, strokes);
+  }
+
   function glyphFor(ch, lang, data) {
     if (data.hand[ch]) return fromHand(ch, data.hand[ch]);
-    const order = lang === "ja" ? ["ja", "zh"] : ["zh", "ja"];
-    for (const k of order) if (data[k][ch]) return fromSkeleton(ch, data[k][ch]);
-    return null;
+    const sk = skeletonOf(ch, lang, data);
+    return sk ? generate(ch, sk) : null;
   }
 
   // ---------- line solve ----------
@@ -448,7 +459,7 @@
     return out;
   }
 
-  const api = { P, layoutLine, lineSVG, flatten };
+  const api = { P, layoutLine, lineSVG, flatten, skeletonOf, generate };
   root.TapeEngine = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);
