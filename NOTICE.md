@@ -1,6 +1,6 @@
 # Third-party material
 
-This repository is private and for personal use. It contains or derives from the material below. Nothing here is licensed for redistribution; the project's own code has no open-source license.
+This repository is public for reference. It contains or derives from the material below. Nothing here is licensed for redistribution; the project's own code has no open-source license.
 
 ## Sign photos (`refs/photos_a/`, `refs/photos_b/`) and traces (`refs/traced/`)
 
