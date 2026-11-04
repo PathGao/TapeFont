@@ -174,7 +174,9 @@
 
   // Knots on one axis (levels/columns plus free tips beyond them) -> cell positions.
   // Returns null when the cell cannot hold them with `white` (in tapes) between facing strips.
-  function place(cl, tips, size, w, white, isY) {
+  // enc(A, B): facing clusters inside one enclosure (口 日 目); in the dense pass they get only a
+  // hairline slit, so the enclosure reads as one solid block with slits (book_method.md).
+  function place(cl, tips, size, w, white, isY, enc) {
     const lo = Math.min(...tips), hi = Math.max(...tips);
     const k = cl.map((c) => ({ v: c.v, level: true, c }));
     if (!k.length || lo < k[0].v - G.join / 2) k.unshift({ v: lo, level: false });
@@ -186,7 +188,13 @@
       const A = k[i], B = k[i + 1], both = A.level && B.level;
       gaps.push(Math.max(B.v - A.v, 1e-3));
       ll.push(both);
-      min.push(both ? (faces(A, B) ? w * (1 + white) : 0.3 * w) : G.poke * w + w / 2);
+      min.push(both ? (faces(A, B) ? (enc && enc(A.c, B.c) ? w + G.slit : w * (1 + white)) : 0.3 * w) : G.poke * w + w / 2);
+    }
+    // facing levels with non-facing ones between them still keep the white (sum of the gaps)
+    for (let i = 0; i < k.length; i++) for (let j = i + 2; j < k.length; j++) {
+      if (!k.slice(i, j + 1).every((n) => n.level) || !faces(k[i], k[j])) continue;
+      const need = enc && enc(k[i].c, k[j].c) ? w + G.slit : w * (1 + white), have = min.slice(i, j).reduce((s, m) => s + m, 0);
+      if (have < need) for (let g = i; g < j; g++) min[g] *= need / have;
     }
     const llg = gaps.filter((g, i) => ll[i]), eq = llg.length ? llg.reduce((s, g) => s + g, 0) / llg.length : 0;
     const t = gaps.map((g, i) => (ll[i] ? G.equal * eq + (1 - G.equal) * g : g));
@@ -491,7 +499,7 @@
     });
   }
 
-  const api = { G, build, parse, marksOf };
+  const api = { G, build, parse, marksOf, place };
   root.TapeGrid = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);

@@ -76,6 +76,15 @@ test("grid: 广/厂 撇 is a post under the left end of the top bar", () => {
   }
 });
 
+test("grid: facing levels keep their white across a non-facing level between them", () => {
+  const Gr = require("../web/grid.js");
+  const L = (v, lo, hi) => ({ v, items: [{ v, lo, hi }] });
+  const cl = [L(0.3, 0.1, 0.4), L(0.4, 0.6, 0.9), L(0.5, 0.1, 0.4), L(0.6, 0.1, 0.4), L(0.7, 0.1, 0.4)];
+  const w = 0.07, k = Gr.place(cl, cl.map((c) => c.v), 0.35, w, 0.3, false);
+  assert.ok(k[2].p - k[0].p >= w * 1.3 - 1e-9, `A..C ${k[2].p - k[0].p}`);
+  assert.equal(Gr.place(cl, cl.map((c) => c.v), 0.3, w, 0.3, false), null);
+});
+
 test("grid: kana marks keep the base and sit in the top-right corner", () => {
   const a = E.P.aspect;
   for (const [ch, base, n] of [["ど", "と", 2], ["ブ", "フ", 2], ["ぷ", "ふ", 1]]) {
