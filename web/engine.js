@@ -198,7 +198,7 @@
 
   function fromHand(ch, e) {
     const g = Object.assign({ strips: [], polys: [], cuts: [], sharp: [] }, clone(e), { ch, hand: true });
-    g.w = Math.min(Math.max(g.w || P.w, 0.09), 0.16);
+    g.w = Math.min(Math.max(g.w || P.w, 0.07), 0.16);
     g.aspect = g.aspect || 1;
     if (ch.codePointAt(0) >= 0x2000 && Math.abs(g.aspect - P.aspect) > 1e-6) {
       const f = P.aspect / g.aspect;

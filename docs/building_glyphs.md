@@ -26,6 +26,7 @@ Outer bends of the merged outline are rounded about one tape width; strip ends a
 ## Standard
 
 - Tape `w` 0.11 of cell height. Dense characters (6+ verticals or 7+ stacked bars) may use 0.09, or a solid block with hairline slits.
+- Complex characters (16+ strokes, e.g. 鷹 龍 響 識 顔): Sato rarely tapes these; when he does, he uses thinner tape. Use `w` 0.07–0.09 so every stroke keeps visible white, keep the same construction as the 0.11 radicals scaled to the thinner tape, and prefer open counters over solid blocks wherever 0.07 tape leaves room.
 - Kana and kanji: `aspect` 0.68, edge to edge. Latin capitals and digits: full height, their own narrow aspect (digits share 0.58).
 - Small kana and marks (ー 。 、 ・ ァ ッ ゃ …) keep their own size, sitting on the baseline.
 - Bars sit on shared levels: top ~0.055 (or ~0.17 when a dot sits above it), middle ~0.46–0.5, base ~0.945.

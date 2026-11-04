@@ -19,7 +19,7 @@ class GlyphJson(unittest.TestCase):
                 e = json.loads(f.read_text(encoding="utf-8"))
                 self.assertEqual(ord(e["ch"]), int(f.stem, 16))
                 self.assertLessEqual(set(e), KEYS)
-                self.assertTrue(0.09 <= e["w"] <= 0.16, e["w"])
+                self.assertTrue(0.07 <= e["w"] <= 0.16, e["w"])
                 if e["src"] is not None:
                     self.assertTrue((ROOT / "refs" / "traced" / e["src"]).is_file(), e["src"])
 

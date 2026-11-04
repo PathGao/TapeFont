@@ -5,3 +5,4 @@ data/raw/
 build/review/
 build/*.json
 node_modules/
+.claude/

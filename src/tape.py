@@ -93,7 +93,7 @@ def manual_path(e, adv):
     """Hand-built glyph -> font units, stretched into a cell adv wide."""
     sys.path.insert(0, str(ROOT / "src"))
     import manual
-    e = dict(e, w=min(max(e.get("w", 0.11), 0.09), 0.16))
+    e = dict(e, w=min(max(e.get("w", 0.11), 0.07), 0.16))
     p = manual.render(e, 904)
     g = P["gap"] * adv / 2
     p = p.transform((adv - 2 * g) / (e.get("aspect", 1) * 904), 0, 0, -1, g, 840)
