@@ -25,7 +25,7 @@ test("grid: deterministic, finite, ink in the cell", () => {
     assert.ok(!s.includes("null"), `NaN in ${ch}`);
     assert.ok(g.w >= 0.07 - 1e-9 && g.w <= E.P.w, `${ch} w ${g.w}`);
     assert.ok(g.strips.length + g.polys.length > 0, `${ch} empty`);
-    const m = g.w / 2 + 1e-6;
+    const m = 1e-9;  // strips stay in the cell (tips just past an outer level stop on it, run-ons stop at the edge)
     for (const p of g.strips.flat()) assert.ok(p[0] >= -m && p[0] <= g.aspect + m && p[1] >= -m && p[1] <= 1 + m, `${ch} strip point ${p}`);
     // slabs may run past the cell edge by their cut (the cell mask trims it), never further than one tape
     for (const p of g.polys.flat()) assert.ok(p[0] >= -2 * g.w && p[0] <= g.aspect + 2 * g.w && p[1] >= -2 * g.w && p[1] <= 1 + 2 * g.w, `${ch} poly point ${p}`);

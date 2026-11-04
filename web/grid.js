@@ -227,13 +227,13 @@
     return k;
   }
 
-  function warper(k) {  // monotone piecewise-linear map through the knots
+  function warper(k, size) {  // monotone piecewise-linear map through the knots, within the cell
     return (v) => {
       if (k.length === 1) return k[0].p + (v - k[0].v);
       let i = 0;
       while (i < k.length - 2 && v > k[i + 1].v) i++;
       const a = k[i], b = k[i + 1];
-      return a.p + ((v - a.v) / (b.v - a.v || 1e-9)) * (b.p - a.p);
+      return Math.min(Math.max(a.p + ((v - a.v) / (b.v - a.v || 1e-9)) * (b.p - a.p), 0), size);  // a tip past the outer level without a knot: at most to the edge
     };
   }
 
@@ -411,7 +411,7 @@
     const slitW = G.slit / w;  // white = hairline
     if (!ky) ky = place(levels, tipsY, 1, w, slitW, true) || place(levels, tipsY, 1, w, -1, true);
     if (!kx) kx = place(cols, tipsX, a, w, slitW, false) || place(cols, tipsX, a, w, -1, false);
-    const wy = warper(ky), wx = warper(kx);
+    const wy = warper(ky, 1), wx = warper(kx, a);
     const pos = (c, kk) => kk.find((n) => n.c === c).p;
     const lvY = (l) => pos(lvOf.get(l), ky), colX = (l) => pos(colOf.get(l), kx);
     // end points in the cell
@@ -480,15 +480,13 @@
       }
       polys.push([[cx - h, cy - h], [cx + h, cy - h], [cx + h, cy + h], [cx - h, cy + h]]);
     }
-    // ponytail: rare extrapolated tips (11 of 11190 chars) can leave the cell; clamp instead of solving them
-    const clamp = (s) => s.map(([x, y]) => [Math.min(Math.max(x, 0), a), Math.min(Math.max(y, 0), 1)]);
-    return { ch, aspect: a, w, strips: mergeCorners(strips, w).map(clamp), polys, cuts: [], sharp, hand: false };
+    return { ch, aspect: a, w, strips: mergeCorners(strips, w, a), polys, cuts: [], sharp, hand: false };
   }
 
   // Strips whose ends meet at one point (an L corner of two strokes) become one strip, so the
   // bend is rounded; a closed loop restarts mid-side (a loop closed at a corner leaves a notch).
-  // Other ends that stop on a strip's line run on by half a tape so the corner is filled.
-  function mergeCorners(strips, w) {
+  // Other ends that stop on a strip's line run on by half a tape (no further than the cell edge) so the corner is filled.
+  function mergeCorners(strips, w, a) {
     const S = strips.map((s) => s.filter((p, i) => !i || dist(p, s[i - 1]) > 1e-6)).filter((s) => s.length > 1);
     const key = (p) => `${p[0].toFixed(4)},${p[1].toFixed(4)}`;
     for (let changed = true; changed; ) {
@@ -522,7 +520,8 @@
       for (const [e, nb] of [[0, 1], [s.length - 1, s.length - 2]]) {
         if (!onLine(s[e], s)) continue;
         const L = dist(s[e], s[nb]);
-        if (L > 1e-6) s[e] = [s[e][0] + ((s[e][0] - s[nb][0]) / L) * w / 2, s[e][1] + ((s[e][1] - s[nb][1]) / L) * w / 2];
+        const r = Math.min(w / 2, ...[[0, a], [1, 1]].map(([ax, hi]) => { const d = (s[e][ax] - s[nb][ax]) / L; return d > 1e-9 ? (hi - s[e][ax]) / d : d < -1e-9 ? -s[e][ax] / d : Infinity; }));
+        if (L > 1e-6 && r > 0) s[e] = [s[e][0] + ((s[e][0] - s[nb][0]) / L) * r, s[e][1] + ((s[e][1] - s[nb][1]) / L) * r];  // capped at the cell edge
       }
     }
     return S.map((s) => {
