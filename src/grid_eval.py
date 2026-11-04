@@ -1,6 +1,7 @@
 """Score the skeleton generators against the hand glyphs.
 
 usage: .venv/bin/python -I src/grid_eval.py [--split tune|test|all] [--gens trace,grid] [--sheet] [--worst N]
+       [--prev DIR]   DIR holds web/*.js of an earlier commit; --gens prev,grid compares against it
 
 Every char that has a hand glyph (glyphs/manual, marks and Latin left out) is generated from its
 skeleton (ja first, then zh) by each generator (web/cli.js --glyphs) and compared with the hand glyph:
@@ -46,12 +47,14 @@ def split(chars):
 
 
 GOPT = []
+PREV = [None]  # --prev DIR: a copy of web/ from an earlier commit, scored as generator "prev"
 
 
 def generate(chars, gen):
     with tempfile.TemporaryDirectory() as d:
         out = Path(d) / "g.json"
-        subprocess.run(["node", str(ROOT / "web/cli.js"), "--glyphs", "".join(chars), str(out), "--lang=ja", f"--gen={gen}"] + GOPT, check=True)
+        cli, opts = (Path(PREV[0]) / "cli.js", ["--gen=grid"]) if gen == "prev" else (ROOT / "web/cli.js", [f"--gen={gen}"] + GOPT)
+        subprocess.run(["node", str(cli), "--glyphs", "".join(chars), str(out), "--lang=ja"] + opts, check=True)
         return json.loads(out.read_text(encoding="utf-8"))
 
 
@@ -127,6 +130,8 @@ def main():
     gens = (a[a.index("--gens") + 1] if "--gens" in a else "trace,grid").split(",")
     if "--G" in a:  # grid parameter overrides for tuning, e.g. --G equal:0.5,white:0.4
         GOPT.append("--G=" + a[a.index("--G") + 1])
+    if "--prev" in a:
+        PREV[0] = a[a.index("--prev") + 1]
     hand = hand_glyphs()
     gl = {gen: generate(list(hand), gen) for gen in gens}
     chars = [c for c in hand if all(c in gl[g] for g in gens)]

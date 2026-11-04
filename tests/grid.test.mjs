@@ -39,7 +39,7 @@ test("grid: strips are axis-aligned, diagonals are four-corner slabs", () => {
       const dx = Math.abs(s[i + 1][0] - s[i][0]), dy = Math.abs(s[i + 1][1] - s[i][1]);
       assert.ok(dx < 1e-6 || dy < 1e-6, `${ch} diagonal strip segment ${JSON.stringify([s[i], s[i + 1]])}`);
     }
-    for (const p of g.polys) assert.equal(p.length, 4, ch);
+    for (const p of g.polys) assert.ok(p.length === 4 || p.length === 20, ch);  // slabs, blocks; discs of the kana marks
   }
 });
 
@@ -58,4 +58,17 @@ test("generated chars lay out in a line with either generator", () => {
     for (const c of L.chars) assert.ok(c.shapes.length > 0 && !c.missing, `${g} ${c.ch}`);
   }
   E.P.generator = "grid";
+});
+
+test("grid: kana marks keep the base and sit in the top-right corner", () => {
+  const a = E.P.aspect;
+  for (const [ch, base, n] of [["ど", "と", 2], ["ブ", "フ", 2], ["ぷ", "ふ", 1]]) {
+    const g = gen(ch), b = gen(base);
+    const marks = g.polys.slice(-n);
+    for (const p of marks.flat()) assert.ok(p[0] > a / 2 && p[1] < 0.36, `${ch} mark at ${p}`);
+    if (ch === "ぷ") assert.equal(g.cuts.length, 1, "ring hole");
+    const x0 = Math.min(...marks.flat().map((p) => p[0])), y1 = Math.max(...marks.flat().map((p) => p[1]));
+    for (const p of g.strips.flat()) assert.ok(!(p[0] > x0 && p[1] < y1), `${ch} strip point ${p} under the marks`);
+    assert.equal(g.strips.length, b.strips.length, `${ch} keeps ${base}'s strips`);
+  }
 });

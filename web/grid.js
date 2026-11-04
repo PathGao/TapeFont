@@ -39,6 +39,11 @@
     midSnap: 0.05,  // a level this close to the middle row line moves onto it
     foot: 0.17,
     kanaD: 0.15,    // kana: a diagonal longer than this (em) becomes an H/V run     // length of a foot that replaces a hook (cell units)
+    markH: 0.27,    // ゛: two posts from the top to this
+    markGap: 0.035, // white between the two posts
+    ringR: 0.1,     // ゜: ring radius
+    ringHole: 0.035,
+    markSqueeze: 0.8, // least sideways squeeze of the base to fit the marks right of its posts
   };
 
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -198,7 +203,90 @@
 
   // ---------- 3. build ----------
 
+  // ---------- dakuten / handakuten ----------
+
+  // The marks are the last strokes of a kana: two short strokes (dakuten) or one zero-length one
+  // (handakuten, a circle in the skeleton), at the top right.
+  function marksOf(strokes) {
+    const n = strokes.length, at = (s) => s.map((p) => [p[0] / 1000, p[1] / 1000]);
+    const topRight = (s) => { const c = at(s).reduce((m, p, i, A) => [m[0] + p[0] / A.length, m[1] + p[1] / A.length], [0, 0]); return c[0] > 0.6 && c[1] < 0.45; };
+    if (n >= 2 && len(at(strokes[n - 1])) < 0.03 && topRight(strokes[n - 1])) return { kind: "o", n: 1 };
+    if (n >= 3 && [1, 2].every((i) => len(at(strokes[n - i])) < 0.14 && topRight(strokes[n - i]))) return { kind: "d", n: 2 };
+    return null;
+  }
+
+  // Hand glyphs keep the base letter and clear the top-right corner for the marks: two short
+  // posts (hiragana dakuten), two discs (katakana) or a ring (handakuten). The marks fit right of the base's tall posts when
+  // there is room (thinner posts, a smaller ring); else base strips that run into the corner
+  // are lowered (a bar that turns down, a free post top) or shortened (a free bar end), and
+  // slabs and dots there move down or left, whichever is less.
+  function addMarks(g, kind) {
+    const a = g.aspect, w = g.w, gap = Math.max(G.white * w, 0.03);
+    const tall = g.strips.flatMap((s) => s.slice(1).filter((q, i) => Math.abs(q[0] - s[i][0]) < 1e-6
+      && Math.min(q[1], s[i][1]) < G.markH && Math.abs(q[1] - s[i][1]) > 0.45).map((q) => q[0] + w / 2 + gap));
+    let right = Math.max(0, ...tall.filter((x) => x > a / 2));
+    const kata = /[\u30a0-\u30ff]/.test(g.ch);
+    const need = a - (kind !== "d" ? 0.16 : kata ? 0.26 : 2 * 0.06 + G.markGap);
+    if (right > need && need / right >= G.markSqueeze) {  // squeeze the base sideways to make room
+      const f = (need - w / 2 - gap) / (right - w / 2 - gap), sx = (P) => P.map(([x, y]) => [x * f, y]);
+      g.strips = g.strips.map(sx); g.polys = g.polys.map(sx); right = need;
+    }
+    const room = a - right;
+    const marks = [];
+    let x0, y1;
+    const circle = (c, r) => Array.from({ length: 20 }, (_, i) => [c[0] + r * Math.cos((i * Math.PI) / 10), c[1] + r * Math.sin((i * Math.PI) / 10)]);
+    if (kind === "d" && !kata) {
+      const bw = Math.min(w, (room - G.markGap) / 2) >= 0.055 ? Math.min(w, (room - G.markGap) / 2) : w;
+      const rect = (x) => [[x - bw, 0], [x, 0], [x, G.markH], [x - bw, G.markH]];
+      marks.push(rect(a), rect(a - bw - G.markGap));
+      x0 = a - 2 * bw - G.markGap; y1 = G.markH;
+    } else if (kind === "d") {  // katakana: two discs
+      marks.push(circle([a - 0.065, 0.075], 0.06), circle([a - 0.2, 0.075], 0.06));
+      x0 = a - 0.26; y1 = 0.135;
+    } else {
+      const R = Math.max(0.07, Math.min(G.ringR, (room - 0.01) / 2)), c = [a - R - 0.01, R + 0.02];
+      marks.push(circle(c, R)); g.cuts.push(circle(c, G.ringHole * R / G.ringR));
+      x0 = c[0] - R; y1 = c[1] + R;
+    }
+    const X = x0 - gap - w / 2, Y = y1 + gap + w / 2;  // centerline limits
+    const out = [];
+    for (let s of g.strips) {
+      s = s.map((p) => p.slice());
+      const closed = dist(s[0], s[s.length - 1]) < 0.02;
+      for (let i = 0; i + 1 < s.length; i++) {  // bars first
+        const p = s[i], q = s[i + 1];
+        if (Math.abs(p[1] - q[1]) > 1e-6 || p[1] >= Y || Math.max(p[0], q[0]) <= X + 1e-6) continue;
+        const free = closed ? -1 : i === 0 && p[0] > q[0] ? 0 : i + 2 === s.length && q[0] > p[0] ? 1 : -1;
+        if (free >= 0 && Math.min(p[0], q[0]) < X - w && Math.max(p[0], q[0]) - X < Y - p[1]) (free ? q : p)[0] = X;
+        else { p[1] = Y; q[1] = Y; }
+      }
+      for (let i = 0; i + 1 < s.length; i++) {  // then free post tops
+        const p = s[i], q = s[i + 1];
+        if (closed || Math.abs(p[0] - q[0]) > 1e-6 || p[0] <= X + 1e-6) continue;
+        if (i === 0 && p[1] < Y && q[1] > p[1]) p[1] = Math.min(Y, q[1]);
+        if (i + 2 === s.length && q[1] < Y && p[1] > q[1]) q[1] = Math.min(Y, p[1]);
+      }
+      s = s.filter((p, i) => !i || dist(p, s[i - 1]) > 1e-6);
+      if (s.length > 1 && len(s) > w / 2) out.push(s);
+    }
+    g.strips = out;
+    g.polys = g.polys.map((P) => {
+      if (!P.some(([x, y]) => x > x0 - gap && y < y1 + gap)) return P;
+      const dy = y1 + gap - Math.min(...P.map((p) => p[1])), dx = Math.max(...P.map((p) => p[0])) - (x0 - gap);
+      return P.map(([x, y]) => (dy <= dx ? [x, y + dy] : [x - dx, y]));
+    });
+    g.sharp = g.polys.flat();
+    g.polys.push(...marks);
+    return g;
+  }
+
   function build(ch, strokes, P) {
+    const m = /[\u3040-\u30ff]/.test(ch) && marksOf(strokes);
+    if (!m) return buildBase(ch, strokes, P);
+    return addMarks(buildBase(ch, strokes.slice(0, -m.n), P), m.kind);
+  }
+
+  function buildBase(ch, strokes, P) {
     const a = P.aspect;
     const kana = /[\u3040-\u30ff]/.test(ch);
     const parsed = strokes.map((s) => parse(s, kana));
@@ -371,7 +459,7 @@
     });
   }
 
-  const api = { G, build, parse };
+  const api = { G, build, parse, marksOf };
   root.TapeGrid = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);
