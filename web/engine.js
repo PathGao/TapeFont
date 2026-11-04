@@ -44,7 +44,6 @@
     generator: "grid",  // chars without a hand glyph: "grid" (Sato's lattice, web/grid.js) or "trace" (old centerline trace)
   };
   const MARKS = "ー一、。・.,〜!-ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶゕゖ";
-  const KANA = /[぀-ヿ]/;
 
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -506,7 +505,9 @@
   // ---------- public ----------
 
   function layoutLine(text, data, opts = {}) {
-    const lang = opts.lang && opts.lang !== "auto" ? opts.lang : KANA.test(text) ? "ja" : "zh";
+    // auto: KanjiVG first for every line, Make Me a Hanzi only for chars KanjiVG lacks (simplified
+    // forms). Its strokes are more regular than the Kaiti-traced ones: held-out IoU 0.529 vs 0.481.
+    const lang = opts.lang && opts.lang !== "auto" ? opts.lang : "ja";
     const glyphs = [...text].map((ch) => (ch === " " || ch === "　" ? null : glyphFor(ch, lang, data)));
     const prof = glyphs.map((g) => g && profile(g));  // before the solve: toggling it never moves glyphs sideways
     if (opts.align ?? P.align) solveLine(glyphs);
