@@ -7,7 +7,8 @@
  * Per line:
  *   1. each char gets a glyph: hand-built if we have one, else built from its stroke skeleton;
  *   2. the line is solved: horizontal levels of all glyphs are clustered, and each glyph is
- *      warped (monotone, piecewise linear in y) so its bars sit on the shared lines;
+ *      warped (monotone, piecewise linear in y) so its bars sit on the shared lines, then bar
+ *      edges that just miss a neighbour's are moved onto it;
  *   3. strips/polys become outlines with Sato's corners (outer bends rounded ~1 tape,
  *      strip ends and inner corners square), cuts are kept for masking.
  *
@@ -239,13 +240,18 @@
 
   // ---------- line solve ----------
 
-  function levelsOf(g) {  // horizontal bars and block edges: [y, weight]
-    const out = [];
+  // Horizontal bars and block edges: c = the level (strip centerline, block edge), len, and its
+  // outline edges [y, kind] (kind 1 = top edge, ink below; -1 = bottom edge).
+  function levelsOf(g) {
+    const out = [], h = g.w / 2;
     const take = (pts, closed) => {
       const n = pts.length;
+      let A = 0;
+      if (closed) for (let i = 0; i < n; i++) A += pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1];
       for (let i = 0; i < (closed ? n : n - 1); i++) {
-        const a = pts[i], b = pts[(i + 1) % n], len = Math.abs(b[0] - a[0]);
-        if (Math.abs(b[1] - a[1]) < 1e-3 && len > 0.12 * g.aspect && a[1] > -0.01 && a[1] < 1.01) out.push([(a[1] + b[1]) / 2, len]);
+        const a = pts[i], b = pts[(i + 1) % n], len = Math.abs(b[0] - a[0]), c = (a[1] + b[1]) / 2;
+        if (!(Math.abs(b[1] - a[1]) < 1e-3 && len > 0.12 * g.aspect && a[1] > -0.01 && a[1] < 1.01)) continue;
+        out.push({ c, len, edges: closed ? [[c, Math.sign((b[0] - a[0]) * A)]] : [[c - h, 1], [c + h, -1]] });
       }
     };
     g.strips.forEach((s) => take(s, false));
@@ -253,12 +259,34 @@
     return out;
   }
 
-  function solveLine(glyphs) {
-    const items = [];
-    glyphs.forEach((g, gi) => {
-      if (!g || g.mark) return;
-      for (const [y, len] of levelsOf(g)) items.push({ y, wt: len * (g.hand ? 3 : 1), gi });
+  // Levels joined by thin white (under one tape: slits, small counters) form rigid groups that
+  // move as one, so thin white never changes. Groups shift onto shared lines; the wide white
+  // bands between groups absorb the shift (at most P.bandChange of themselves, never below
+  // P.minGap). The glyph is never scaled, and its ink never leaves the cell.
+  function planOf(g) {
+    const ink = inkY(g), levels = levelsOf(g);
+    const own = [...new Set(levels.map((L) => +L.c.toFixed(4)).concat(ink))].sort((p, q) => p - q);
+    const groups = [];
+    own.forEach((y, i) => {
+      if (i && y - own[i - 1] - g.w >= g.w) groups.push([y]); else (groups[groups.length - 1] || groups[groups.push([]) - 1]).push(y);
     });
+    const groupOf = (c) => groups.findIndex((G) => G.some((v) => Math.abs(v - c) < 1e-4));
+    const edges = levels.flatMap((L) => L.edges.map(([y, kind]) => ({ y, kind, k: groupOf(L.c) })));
+    const tol = g.hand ? P.tolHand : P.tolGen;
+    const fits = (k, d) => Math.abs(d) <= tol + 1e-9 && (!groups[k].includes(ink[0]) || d >= -ink[0] - 1e-9) && (!groups[k].includes(ink[1]) || d <= 1 - ink[1] + 1e-9);
+    const ok = (sh) => groups.every((G, i) => {  // white bands between groups
+      if (!i) return true;
+      const wo = G[0] - groups[i - 1][groups[i - 1].length - 1] - g.w, wn = wo + sh[i] - sh[i - 1];
+      return wn >= P.minGap && Math.abs(wn - wo) <= P.bandChange * wo + 1e-6;
+    });
+    return { g, ink, levels, groups, groupOf, edges, tol, fits, ok, shift: groups.map(() => 0) };
+  }
+
+  function solveLine(glyphs) {
+    const plans = glyphs.map((g) => (g && !g.mark ? planOf(g) : null));
+    // 1. shared lines: levels of all glyphs, clustered; a line is shared only if two glyphs use it
+    const items = [];
+    plans.forEach((pl, gi) => pl && pl.levels.forEach((L) => items.push({ y: L.c, wt: L.len * (pl.g.hand ? 3 : 1), gi })));
     items.sort((p, q) => p.y - q.y);
     const clusters = [];
     for (const it of items) {
@@ -270,7 +298,7 @@
     const anchorsOf = new Map();
     for (const c of clusters) {
       const owners = new Set(c.items.map((i) => i.gi));
-      if (owners.size < 2) continue;  // a line is shared only if two glyphs use it
+      if (owners.size < 2) continue;
       for (const gi of owners) {
         const mine = c.items.filter((i) => i.gi === gi).sort((p, q) => Math.abs(p.y - c.mean) - Math.abs(q.y - c.mean))[0];
         if (!anchorsOf.has(gi)) anchorsOf.set(gi, []);
@@ -278,18 +306,7 @@
       }
     }
     anchorsOf.forEach((anchors, gi) => {
-      const g = glyphs[gi];
-      // Levels joined by thin white (under one tape: slits, small counters) form rigid groups that
-      // move as one, so thin white never changes. Groups shift onto shared lines; the wide white
-      // bands between groups absorb the shift (at most P.bandChange of themselves, never below
-      // P.minGap). The glyph is never scaled, and its ink never leaves the cell.
-      const ink = inkY(g);
-      const tol = g.hand ? P.tolHand : P.tolGen;
-      const own = [...new Set(levelsOf(g).map(([y]) => +y.toFixed(4)).concat(ink))].sort((p, q) => p - q);
-      const groups = [];
-      own.forEach((y, i) => {
-        if (i && y - own[i - 1] - g.w >= g.w) groups.push([y]); else (groups[groups.length - 1] || groups[groups.push([]) - 1]).push(y);
-      });
+      const pl = plans[gi], { groups, ink, tol } = pl;
       const shift = groups.map((G) => {
         const mine = anchors.filter(([y, t]) => G.some((v) => Math.abs(v - y) < 1e-4) && Math.abs(y - t) <= tol);
         if (!mine.length) return 0;
@@ -299,15 +316,51 @@
         if (G.includes(ink[1])) d = Math.min(d, 1 - ink[1]);  // the base group may sink only to the cell bottom
         return d;
       });
-      const ok = (sh) => groups.every((G, i) => {  // white bands between groups
-        if (!i) return true;
-        const wo = G[0] - groups[i - 1][groups[i - 1].length - 1] - g.w, wn = wo + sh[i] - sh[i - 1];
-        return wn >= P.minGap && Math.abs(wn - wo) <= P.bandChange * wo + 1e-6;
-      });
       // drop the smallest moves first until every band is fine
       const order = shift.map((d, i) => i).filter((i) => shift[i]).sort((p, q) => Math.abs(shift[p]) - Math.abs(shift[q]));
-      while (!ok(shift) && order.length) shift[order.shift()] = 0;
-      if (!shift.some((d) => d)) return;
+      while (!pl.ok(shift) && order.length) shift[order.shift()] = 0;
+      pl.shift = shift;
+    });
+    // 2. neighbours: a bar edge 0.004-0.04 off its neighbour's reads as a mistake. Each group may
+    // still move (same limits as above) so that its edges meet the neighbours' edges exactly,
+    // if that leaves fewer near misses; top edges meet top edges, bottoms meet bottoms.
+    const near = (pl, k, d, gi) => {
+      let cost = Math.abs(d - pl.shift[k]) * 0.01;
+      for (const n of [plans[gi - 1], plans[gi + 1]]) {
+        if (!n) continue;
+        for (const e of pl.edges) {
+          if (e.k !== k) continue;
+          let m = Infinity;
+          for (const f of n.edges) if (f.kind === e.kind) m = Math.min(m, Math.abs(f.y + n.shift[f.k] - e.y - d));
+          if (m <= 0.004) cost -= 1; else if (m < 0.04) cost += 2;
+        }
+      }
+      return cost;
+    };
+    for (let sweep = 0; sweep < 3; sweep++) {
+      plans.forEach((pl, gi) => {
+        if (!pl) return;
+        pl.groups.forEach((G, k) => {
+          const cands = [pl.shift[k], 0];
+          for (const n of [plans[gi - 1], plans[gi + 1]]) {
+            if (!n) continue;
+            for (const e of pl.edges) if (e.k === k) for (const f of n.edges) if (f.kind === e.kind) cands.push(f.y + n.shift[f.k] - e.y);
+          }
+          let best = pl.shift[k], bc = near(pl, k, best, gi);
+          for (const d of cands) {
+            if (!pl.fits(k, d)) continue;
+            const sh = pl.shift.slice(); sh[k] = d;
+            if (!pl.ok(sh)) continue;
+            const c = near(pl, k, d, gi);
+            if (c < bc - 1e-9) { bc = c; best = d; }
+          }
+          pl.shift[k] = best;
+        });
+      });
+    }
+    plans.forEach((pl) => {
+      if (!pl || !pl.shift.some((d) => d)) return;
+      const { g, groups, shift } = pl;
       const pts = groups.flatMap((G, i) => [[G[0], G[0] + shift[i]], [G[G.length - 1], G[G.length - 1] + shift[i]]]);
       const uniq = pts.filter((p, i) => !i || p[0] - pts[i - 1][0] > 1e-6);
       mapGlyph(g, (x) => x, warper(uniq));
