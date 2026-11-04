@@ -65,9 +65,12 @@ test("lineSVG: one path per drawn glyph", () => {
   assert.equal((svg.match(/<path d="[^"]*" mask=/g) || []).length, drawn);
 });
 
+// 鷹 is hand-built now; these tests take its hand glyph away to exercise the fallbacks
+const NOHAND = Object.assign({}, DATA, { hand: Object.fromEntries(Object.entries(DATA.hand).filter(([k]) => k !== "鷹")), comp: {} });
+
 test("char without a hand glyph is generated from its skeleton", () => {
-  assert.ok(!DATA.hand["鷹"] && (DATA.zh["鷹"] || DATA.ja["鷹"]));
-  const [c] = lay("鷹").chars;
+  assert.ok(DATA.zh["鷹"] || DATA.ja["鷹"]);
+  const [c] = E.layoutLine("鷹", NOHAND).chars;
   assert.equal(c.missing, false);
   assert.ok(c.shapes.length > 0);
 });
@@ -144,7 +147,7 @@ test("composed glyphs in a line: ink inside the cell", () => {
 test("a component without a library part is built from its own skeleton strokes", () => {
   const ch = "鷹", n = DATA.zh[ch].length;  // fake tree: 广 (library part) around the rest (no part)
   const rest = [...Array(n - 3).keys()].map((i) => i + 3);
-  const data = Object.assign({}, DATA, { comp: { [ch]: ["zh", [ch, "", [0, 0, 1000, 1000], [
+  const data = Object.assign({}, NOHAND, { comp: { [ch]: ["zh", [ch, "", [0, 0, 1000, 1000], [
     ["广", "tare", [0, 0, 1000, 1000], [0, 1, 2]], ["", "tarec", [300, 300, 1000, 1000], rest]]]] } });
   const g = E.glyphFor(ch, "zh", data);
   assert.ok(g.composed && g.skel === n - 3);
