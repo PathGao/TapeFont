@@ -61,6 +61,8 @@
     kanaTick: 0.25, // kana: a lone diagonal shorter than this (em) is a tick, built as a short bar or post
     pieTail: 0.15,  // 撇 tail longer than this after a post: the stroke becomes one post with a foot
     pieX: 0,        // where that post goes: 0 = the post, 1 = the tail end
+    pieSteep: 1.5,  // a one-leg 撇 this steep (dy/dx) whose top touches a bar or post is a post with a left foot
+    pieLong: 0.2,   // ... if at least this long (em)
     dotMid: 0.2,    // ... and this close to the bar's middle (in bar lengths)
     dotPost: 0.25,  // a top dot this close (em) above a bar is a post down to it
     dotLen: 0.2,    // a lone diagonal shorter than this (em) is a dot (氵 灬 点)
@@ -68,8 +70,6 @@
     dotLeft: 0.3,   // dots left of this (em) stacked two or more (氵 冫) are bars from the edge on the right part's levels
     dotSnap: 0.12,  // ... snapped to a right-part level this close (em)
     dotLow: 0.7,    // three or more dots below this (em) are 灬: one band split by slits
-    narrow: 0.4,   // a left component narrower than this (em) keeps only its longest diagonal as a slab
-    splitTol: 0.03, // ... its strokes may reach this far (em) into the right part
     dotSlit: 1,    // ... white between its pieces, in tapes
     markH: 0.27,    // ゛: two posts from the top to this
     markGap: 0.035, // white between the two posts
@@ -443,19 +443,6 @@
     return g;
   }
 
-  // Left–right structure: the x (0..1) that splits the strokes into a left component of at least two
-  // strokes narrower than G.narrow and the rest (overlap G.splitTol allowed); null when there is none.
-  function leftSplit(strokes) {
-    const r = strokes.map((s) => { const xs = s.map((p) => p[0] / 1000); return [Math.min(...xs), Math.max(...xs)]; });
-    let best = null;
-    for (const [, x] of r) {
-      const left = r.filter((q) => q[1] <= x + 1e-9), right = r.filter((q) => q[1] > x + 1e-9);
-      if (left.length < 2 || !right.length || x - Math.min(...left.map((q) => q[0])) >= G.narrow) continue;
-      if (right.every((q) => q[0] >= x - G.splitTol) && (best === null || x > best)) best = x;
-    }
-    return best;
-  }
-
   function buildBase(ch, strokes, P, cut, join) {
     const a = P.aspect;
     const kana = /[\u3040-\u30ff]/.test(ch);
@@ -471,8 +458,19 @@
       s.legs = [{ t: "V", a: [x, top[1]], b: [x, d.b[1]], mid: [] }];
       s.foot = -1;
     }
-    // the top dot over a bar or roof (宀 亠 言 立 文): the bar right under it, nothing above it
+    // 夂 人 衣 春: a long steep 撇 whose top touches a bar or post is a post with a left foot too
     const posts = st.flatMap((s) => s.legs).filter((l) => l.t === "V");
+    if (!kana && G.pieSteep) for (const s of st) {
+      const d = s.legs.length === 1 && s.legs[0];
+      if (!d || d.t !== "D" || d.b[0] >= d.a[0] || d.b[1] - d.a[1] < G.pieSteep * (d.a[0] - d.b[0]) || dist(d.a, d.b) < G.pieLong) continue;
+      // top on a bar's span (not past its end: 亻), not where a post crosses it (木 禾 keep their slab)
+      const on = (l, ax, m) => Math.abs(l.a[1 - ax] - d.a[1 - ax]) < G.joinSpan && d.a[ax] > Math.min(l.a[ax], l.b[ax]) + m && d.a[ax] < Math.max(l.a[ax], l.b[ax]) - m;
+      if (!bars.some((l) => on(l, 0, 0)) || posts.some((l) => on(l, 1, G.joinSpan))) continue;
+      s.legs = [{ t: "V", a: d.a, b: [d.a[0], d.b[1]], mid: [] }];
+      s.foot = -1;
+      posts.push(s.legs[0]);
+    }
+    // the top dot over a bar or roof (宀 亠 言 立 文): the bar right under it, nothing above it
     const barUnder = (c) => {
       const bar = bars.filter((l) => c[0] > Math.min(l.a[0], l.b[0]) - G.joinSpan && c[0] < Math.max(l.a[0], l.b[0]) + G.joinSpan)
         .reduce((b, l) => (!b || l.a[1] < b.a[1] ? l : b), null);

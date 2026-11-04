@@ -159,6 +159,13 @@ test("grid: 竖钩 and 横折钩 with a left hook end in a left foot (刂 卩)",
   }
 });
 
+test("grid: a long steep 撇 hanging from a bar is a post with a left foot (四), 亻 木 keep theirs", () => {
+  const g = gen("四");
+  assert.equal(g.polys.length, 0, "四 has a slab");
+  assert.ok(g.strips.some((s) => s.length === 3 && Math.abs(s[0][0] - s[1][0]) < 1e-9 && s[2][0] < s[1][0] && Math.abs(s[1][1] - s[2][1]) < 1e-9), "四 no post with a foot");
+  for (const ch of ["何", "林"]) assert.ok(gen(ch).polys.length > 0, `${ch} lost its slab`);
+});
+
 test("grid: kana marks keep the base and sit in the top-right corner", () => {
   const a = E.P.aspect;
   for (const [ch, base, n] of [["ど", "と", 2], ["ブ", "フ", 2], ["ぷ", "ふ", 1]]) {
