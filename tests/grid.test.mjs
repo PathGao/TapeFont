@@ -247,5 +247,5 @@ test("grid: a known left radical comes from its donor hand glyph, look-alikes do
   for (const ch of "帆刽祠吃朝") assert.equal(r(ch), undefined, ch);  // 巾 is not 忄, 礻 is not 方, right-side 月 is not a left radical
   const g = E.generate("港", E.skeletonOf("港", "ja", DATA), "grid", DATA);
   assert.equal(g.radical, "氵");
-  for (const s of DATA.hand["注"].strips.filter((s) => Math.max(...s.map((p) => p[0])) <= 0.22)) assert.ok(g.strips.some((t) => JSON.stringify(t) === JSON.stringify(s)));
+  for (const s of DATA.hand["洋"].strips.filter((s) => Math.max(...s.map((p) => p[0])) <= 0.228)) assert.ok(g.strips.some((t) => JSON.stringify(t) === JSON.stringify(s)));
 });
